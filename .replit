@@ -1,4 +1,4 @@
-modules = ["nodejs-24"]
+modules = ["nodejs-24", "postgresql-16"]
 
 [deployment]
 router = "application"
@@ -18,3 +18,22 @@ expertMode = true
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 20000
+
+[userenv]
+
+[userenv.shared]
+TMDB_API_KEY = "193c909f9dcb815ea536c783dab59ff5"
+ADMIN_EMAIL = "syckbocckv@gmail.com"
+VITE_TMDB_API_KEY = "193c909f9dcb815ea536c783dab59ff5"
+ADMIN_PASSWORD = "DREED12345FNR"
+
+[nix]
+channel = "stable-25_05"
+
+[[ports]]
+localPort = 8080
+externalPort = 80
+
+[[ports]]
+localPort = 26054
+externalPort = 3000

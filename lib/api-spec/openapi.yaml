@@ -1,22 +1,32 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Sarad streaming platform API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Admin authentication
+  - name: content
+    description: Movies and series management
+  - name: ads
+    description: Advertisement management
+  - name: announcements
+    description: Announcements and ticker management
+  - name: tmdb
+    description: TMDB proxy endpoints
+  - name: home
+    description: Home page featured content
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +34,450 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/login:
+    post:
+      operationId: adminLogin
+      tags: [auth]
+      summary: Admin login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminLoginInput"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminTokenResult"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/verify:
+    get:
+      operationId: verifyAdmin
+      tags: [auth]
+      summary: Verify admin token
+      responses:
+        "200":
+          description: Token is valid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminVerifyResult"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /content:
+    get:
+      operationId: listContent
+      tags: [content]
+      summary: List all content
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [movie, series, all]
+          description: Filter by content type
+        - name: featured
+          in: query
+          schema:
+            type: boolean
+          description: Filter featured content only
+        - name: category
+          in: query
+          schema:
+            type: string
+          description: Filter by category/genre
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: offset
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Content list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Content"
+    post:
+      operationId: createContent
+      tags: [content]
+      summary: Create new content (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContentInput"
+      responses:
+        "201":
+          description: Content created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Content"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /content/featured:
+    get:
+      operationId: getFeaturedContent
+      tags: [content]
+      summary: Get featured content for hero slider
+      responses:
+        "200":
+          description: Featured content list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Content"
+
+  /content/categories:
+    get:
+      operationId: getContentCategories
+      tags: [content]
+      summary: Get distinct content categories
+      responses:
+        "200":
+          description: Categories list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Category"
+
+  /content/{id}:
+    get:
+      operationId: getContent
+      tags: [content]
+      summary: Get single content item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Content item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Content"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateContent
+      tags: [content]
+      summary: Update content (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContentUpdate"
+      responses:
+        "200":
+          description: Updated content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Content"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteContent
+      tags: [content]
+      summary: Delete content (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /ads:
+    get:
+      operationId: listAds
+      tags: [ads]
+      summary: List all ads
+      responses:
+        "200":
+          description: Ads list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Ad"
+    post:
+      operationId: createAd
+      tags: [ads]
+      summary: Create new ad (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdInput"
+      responses:
+        "201":
+          description: Ad created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ad"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /ads/{id}:
+    delete:
+      operationId: deleteAd
+      tags: [ads]
+      summary: Delete ad (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateAd
+      tags: [ads]
+      summary: Update ad (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdUpdate"
+      responses:
+        "200":
+          description: Updated ad
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ad"
+
+  /announcements:
+    get:
+      operationId: listAnnouncements
+      tags: [announcements]
+      summary: List active announcements
+      responses:
+        "200":
+          description: Announcements list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Announcement"
+    post:
+      operationId: createAnnouncement
+      tags: [announcements]
+      summary: Create announcement (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnnouncementInput"
+      responses:
+        "201":
+          description: Announcement created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Announcement"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /announcements/{id}:
+    delete:
+      operationId: deleteAnnouncement
+      tags: [announcements]
+      summary: Delete announcement (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+    patch:
+      operationId: updateAnnouncement
+      tags: [announcements]
+      summary: Update announcement (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnnouncementUpdate"
+      responses:
+        "200":
+          description: Updated announcement
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Announcement"
+
+  /tmdb/search:
+    get:
+      operationId: searchTmdb
+      tags: [tmdb]
+      summary: Search TMDB for movies/TV shows
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [movie, tv, multi]
+      responses:
+        "200":
+          description: TMDB search results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TmdbSearchResult"
+
+  /tmdb/trending:
+    get:
+      operationId: getTmdbTrending
+      tags: [tmdb]
+      summary: Get trending content from TMDB
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [movie, tv, all]
+      responses:
+        "200":
+          description: Trending content from TMDB
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TmdbSearchResult"
+
+  /tmdb/movie/{tmdbId}:
+    get:
+      operationId: getTmdbMovie
+      tags: [tmdb]
+      summary: Get movie details from TMDB
+      parameters:
+        - name: tmdbId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Movie details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TmdbMovieDetail"
+
+  /home/stats:
+    get:
+      operationId: getHomeStats
+      tags: [home]
+      summary: Get home page stats (total content, featured count, etc.)
+      responses:
+        "200":
+          description: Home stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HomeStats"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +488,375 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    AdminLoginInput:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    AdminTokenResult:
+      type: object
+      required: [token, isAdmin]
+      properties:
+        token:
+          type: string
+        isAdmin:
+          type: boolean
+
+    AdminVerifyResult:
+      type: object
+      required: [isAdmin]
+      properties:
+        isAdmin:
+          type: boolean
+
+    Content:
+      type: object
+      required: [id, title, type, createdAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        titleAr:
+          type: ["string", "null"]
+        type:
+          type: string
+          enum: [movie, series]
+        description:
+          type: ["string", "null"]
+        descriptionAr:
+          type: ["string", "null"]
+        posterUrl:
+          type: ["string", "null"]
+        backdropUrl:
+          type: ["string", "null"]
+        videoUrl:
+          type: ["string", "null"]
+        trailerUrl:
+          type: ["string", "null"]
+        tmdbId:
+          type: ["integer", "null"]
+        rating:
+          type: ["number", "null"]
+        year:
+          type: ["integer", "null"]
+        duration:
+          type: ["integer", "null"]
+        genres:
+          type: ["string", "null"]
+        language:
+          type: ["string", "null"]
+        quality:
+          type: ["string", "null"]
+        isFeatured:
+          type: boolean
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+
+    ContentInput:
+      type: object
+      required: [title, type]
+      properties:
+        title:
+          type: string
+        titleAr:
+          type: string
+        type:
+          type: string
+          enum: [movie, series]
+        description:
+          type: string
+        descriptionAr:
+          type: string
+        posterUrl:
+          type: string
+        backdropUrl:
+          type: string
+        videoUrl:
+          type: string
+        trailerUrl:
+          type: string
+        tmdbId:
+          type: integer
+        rating:
+          type: number
+        year:
+          type: integer
+        duration:
+          type: integer
+        genres:
+          type: string
+        language:
+          type: string
+        quality:
+          type: string
+        isFeatured:
+          type: boolean
+        isActive:
+          type: boolean
+
+    ContentUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        titleAr:
+          type: string
+        type:
+          type: string
+          enum: [movie, series]
+        description:
+          type: string
+        descriptionAr:
+          type: string
+        posterUrl:
+          type: string
+        backdropUrl:
+          type: string
+        videoUrl:
+          type: string
+        trailerUrl:
+          type: string
+        tmdbId:
+          type: integer
+        rating:
+          type: number
+        year:
+          type: integer
+        duration:
+          type: integer
+        genres:
+          type: string
+        language:
+          type: string
+        quality:
+          type: string
+        isFeatured:
+          type: boolean
+        isActive:
+          type: boolean
+
+    Category:
+      type: object
+      required: [name, count]
+      properties:
+        name:
+          type: string
+        count:
+          type: integer
+
+    Ad:
+      type: object
+      required: [id, title, type, createdAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        titleAr:
+          type: ["string", "null"]
+        type:
+          type: string
+          enum: [banner, video]
+        imageUrl:
+          type: ["string", "null"]
+        videoUrl:
+          type: ["string", "null"]
+        linkUrl:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+        order:
+          type: integer
+        createdAt:
+          type: string
+
+    AdInput:
+      type: object
+      required: [title, type]
+      properties:
+        title:
+          type: string
+        titleAr:
+          type: string
+        type:
+          type: string
+          enum: [banner, video]
+        imageUrl:
+          type: string
+        videoUrl:
+          type: string
+        linkUrl:
+          type: string
+        isActive:
+          type: boolean
+        order:
+          type: integer
+
+    AdUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        titleAr:
+          type: string
+        type:
+          type: string
+          enum: [banner, video]
+        imageUrl:
+          type: string
+        videoUrl:
+          type: string
+        linkUrl:
+          type: string
+        isActive:
+          type: boolean
+        order:
+          type: integer
+
+    Announcement:
+      type: object
+      required: [id, text, createdAt]
+      properties:
+        id:
+          type: integer
+        text:
+          type: string
+        textAr:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+
+    AnnouncementInput:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+        textAr:
+          type: string
+        isActive:
+          type: boolean
+
+    AnnouncementUpdate:
+      type: object
+      properties:
+        text:
+          type: string
+        textAr:
+          type: string
+        isActive:
+          type: boolean
+
+    TmdbMovie:
+      type: object
+      required: [id, title]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        name:
+          type: ["string", "null"]
+        overview:
+          type: ["string", "null"]
+        poster_path:
+          type: ["string", "null"]
+        backdrop_path:
+          type: ["string", "null"]
+        vote_average:
+          type: ["number", "null"]
+        release_date:
+          type: ["string", "null"]
+        first_air_date:
+          type: ["string", "null"]
+        media_type:
+          type: ["string", "null"]
+        genre_ids:
+          type: array
+          items:
+            type: integer
+        original_language:
+          type: ["string", "null"]
+
+    TmdbSearchResult:
+      type: object
+      required: [results, total_results, total_pages, page]
+      properties:
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/TmdbMovie"
+        total_results:
+          type: integer
+        total_pages:
+          type: integer
+        page:
+          type: integer
+
+    TmdbMovieDetail:
+      type: object
+      required: [id, title]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        overview:
+          type: ["string", "null"]
+        poster_path:
+          type: ["string", "null"]
+        backdrop_path:
+          type: ["string", "null"]
+        vote_average:
+          type: ["number", "null"]
+        release_date:
+          type: ["string", "null"]
+        runtime:
+          type: ["integer", "null"]
+        genres:
+          type: array
+          items:
+            type: object
+            required: [id, name]
+            properties:
+              id:
+                type: integer
+              name:
+                type: string
+        original_language:
+          type: ["string", "null"]
+        tagline:
+          type: ["string", "null"]
+
+    HomeStats:
+      type: object
+      required: [totalMovies, totalSeries, featuredCount, totalAds, totalAnnouncements]
+      properties:
+        totalMovies:
+          type: integer
+        totalSeries:
+          type: integer
+        featuredCount:
+          type: integer
+        totalAds:
+          type: integer
+        totalAnnouncements:
+          type: integer
