@@ -44,4 +44,33 @@ router.get("/tmdb/movie/:tmdbId", async (req, res): Promise<void> => {
   res.json(data);
 });
 
+// Genre list for movies
+router.get("/tmdb/genres", async (_req, res): Promise<void> => {
+  const data = await tmdbFetch("/genre/movie/list");
+  res.json(data);
+});
+
+// Discover movies by genre
+router.get("/tmdb/discover", async (req, res): Promise<void> => {
+  const genreId = req.query.genreId as string;
+  const page = req.query.page || "1";
+  if (!genreId) {
+    res.status(400).json({ error: "genreId is required" });
+    return;
+  }
+  const data = await tmdbFetch(`/discover/movie?with_genres=${encodeURIComponent(genreId)}&sort_by=popularity.desc&page=${page}`);
+  res.json(data);
+});
+
+// TMDB TV show details
+router.get("/tmdb/tv/:tmdbId", async (req, res): Promise<void> => {
+  const tmdbId = parseInt(req.params.tmdbId, 10);
+  if (isNaN(tmdbId)) {
+    res.status(400).json({ error: "Invalid tmdbId" });
+    return;
+  }
+  const data = await tmdbFetch(`/tv/${tmdbId}`);
+  res.json(data);
+});
+
 export default router;

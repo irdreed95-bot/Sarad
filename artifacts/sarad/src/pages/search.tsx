@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Search, X } from "lucide-react";
+import { Search, X, Star } from "lucide-react";
+import { useLocation } from "wouter";
 import { useSearchTmdb, getSearchTmdbQueryKey, useListContent } from "@workspace/api-client-react";
 import { ContentCard } from "@/components/content-card";
 import { useLang } from "@/lib/language";
@@ -14,24 +15,38 @@ export default function SearchPage() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<FilterType>("all");
   const { t, isRTL } = useLang();
+  const [, navigate] = useLocation();
   const debouncedQuery = useDebounce(query, 400);
 
   const { data: tmdbResults, isLoading: tmdbLoading } = useSearchTmdb(
     { query: debouncedQuery, type: "multi" },
-    { query: { enabled: debouncedQuery.length > 1, queryKey: getSearchTmdbQueryKey({ query: debouncedQuery, type: "multi" }) } }
+    {
+      query: {
+        enabled: debouncedQuery.length > 1,
+        queryKey: getSearchTmdbQueryKey({ query: debouncedQuery, type: "multi" }),
+      },
+    }
   );
 
   const { data: localContent } = useListContent();
 
-  const localMatches = debouncedQuery.length > 1
-    ? (localContent || []).filter((c) =>
-        c.title.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
-        (c.titleAr && c.titleAr.includes(debouncedQuery))
-      )
-    : [];
+  const localMatches =
+    debouncedQuery.length > 1
+      ? (localContent || []).filter(
+          (c) =>
+            c.title.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
+            (c.titleAr && c.titleAr.includes(debouncedQuery))
+        )
+      : [];
 
   const tmdbItems = (tmdbResults?.results || [])
-    .filter((m: any) => filter === "all" || m.media_type === filter || (filter === "series" && m.media_type === "tv"))
+    .filter(
+      (m: any) =>
+        m.media_type !== "person" &&
+        (filter === "all" ||
+          m.media_type === filter ||
+          (filter === "series" && m.media_type === "tv"))
+    )
     .slice(0, 20);
 
   const filterTabs: { key: FilterType; labelAr: string; labelEn: string }[] = [
@@ -51,8 +66,11 @@ export default function SearchPage() {
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            autoFocus
             placeholder={t("ابحث عن فيلم أو مسلسل...", "Search for a movie or series...")}
-            className={`w-full bg-zinc-900 border border-white/10 rounded-xl py-4 text-white placeholder-white/40 focus:outline-none focus:border-primary/50 transition-colors ${isRTL ? "pr-12 pl-12 text-right" : "pl-12 pr-12"}`}
+            className={`w-full bg-zinc-900 border border-white/10 rounded-xl py-4 text-white placeholder-white/40 focus:outline-none focus:border-primary/50 transition-colors ${
+              isRTL ? "pr-12 pl-12 text-right" : "pl-12 pr-12"
+            }`}
           />
           {query && (
             <button
@@ -73,17 +91,25 @@ export default function SearchPage() {
             key={key}
             data-testid={`button-filter-${key}`}
             onClick={() => setFilter(key)}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${filter === key ? "bg-primary text-primary-foreground" : "bg-zinc-900 text-white/60 hover:text-white border border-white/10"}`}
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+              filter === key
+                ? "bg-primary text-primary-foreground"
+                : "bg-zinc-900 text-white/60 hover:text-white border border-white/10"
+            }`}
           >
             {t(labelAr, labelEn)}
           </button>
         ))}
       </div>
 
-      {/* Local matches */}
+      {/* Local library matches */}
       {localMatches.length > 0 && (
         <div className="mb-8">
-          <h3 className={`text-base font-semibold text-white/80 mb-4 ${isRTL ? "text-right" : "text-left"}`}>
+          <h3
+            className={`text-base font-semibold text-white/80 mb-4 ${
+              isRTL ? "text-right" : "text-left"
+            }`}
+          >
             {t("من مكتبتنا", "From Our Library")}
           </h3>
           <div className="flex flex-wrap gap-3">
@@ -107,7 +133,11 @@ export default function SearchPage() {
       {/* TMDB results */}
       {debouncedQuery.length > 1 && (
         <div>
-          <h3 className={`text-base font-semibold text-white/80 mb-4 ${isRTL ? "text-right" : "text-left"}`}>
+          <h3
+            className={`text-base font-semibold text-white/80 mb-4 ${
+              isRTL ? "text-right" : "text-left"
+            }`}
+          >
             {t("نتائج البحث", "Search Results")}
           </h3>
           {tmdbLoading ? (
@@ -119,10 +149,11 @@ export default function SearchPage() {
           ) : tmdbItems.length > 0 ? (
             <div className="flex flex-wrap gap-3">
               {tmdbItems.map((m: any) => (
-                <div
+                <button
                   key={m.id}
                   data-testid={`card-tmdb-${m.id}`}
-                  className="relative flex-shrink-0 w-36 rounded-lg overflow-hidden bg-zinc-900 border border-white/5 hover:border-primary/40 transition-colors cursor-pointer"
+                  onClick={() => navigate(`/watch/${m.id}`)}
+                  className="relative flex-shrink-0 w-36 rounded-lg overflow-hidden bg-zinc-900 border border-white/5 hover:border-primary/50 hover:scale-105 transition-all duration-200 cursor-pointer text-left group"
                   style={{ aspectRatio: "2/3" }}
                 >
                   {m.poster_path ? (
@@ -130,23 +161,54 @@ export default function SearchPage() {
                       src={`${TMDB_IMG}${m.poster_path}`}
                       alt={m.title || m.name}
                       className="w-full h-full object-cover"
+                      loading="lazy"
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center p-2">
-                      <span className="text-white/40 text-xs text-center">{m.title || m.name}</span>
+                    <div className="w-full h-full flex items-center justify-center p-2 bg-zinc-800">
+                      <span className="text-white/40 text-xs text-center">
+                        {m.title || m.name}
+                      </span>
                     </div>
                   )}
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black to-transparent p-2">
-                    <p className="text-white text-xs font-medium line-clamp-2">{m.title || m.name}</p>
+
+                  {/* Play overlay on hover */}
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-full bg-primary/90 flex items-center justify-center">
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="white"
+                      >
+                        <path d="M8 5v14l11-7z" />
+                      </svg>
+                    </div>
+                  </div>
+
+                  {/* Info bar */}
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/70 to-transparent p-2 pt-6">
+                    <p className="text-white text-xs font-medium line-clamp-2 leading-tight">
+                      {m.title || m.name}
+                    </p>
                     {m.vote_average > 0 && (
-                      <p className="text-primary text-[10px] mt-0.5">{m.vote_average.toFixed(1)}</p>
+                      <p className="flex items-center gap-0.5 text-primary text-[10px] mt-1">
+                        <Star size={9} fill="currentColor" />
+                        {m.vote_average.toFixed(1)}
+                      </p>
                     )}
                   </div>
-                </div>
+
+                  {/* Type badge */}
+                  <div className="absolute top-1.5 left-1.5 bg-black/70 text-white/60 text-[9px] uppercase px-1.5 py-0.5 rounded">
+                    {m.media_type === "tv" ? t("مسلسل", "TV") : t("فيلم", "Movie")}
+                  </div>
+                </button>
               ))}
             </div>
           ) : (
-            <p className="text-white/40 text-sm">{t("لا توجد نتائج", "No results found")}</p>
+            <p className="text-white/40 text-sm">
+              {t("لا توجد نتائج", "No results found")}
+            </p>
           )}
         </div>
       )}
@@ -155,8 +217,12 @@ export default function SearchPage() {
       {!debouncedQuery && (
         <div className="flex flex-col items-center justify-center mt-20 text-center">
           <Search size={48} className="text-white/20 mb-4" />
-          <p className="text-white/40 text-lg">{t("ابدأ بالبحث عن محتوى", "Start searching for content")}</p>
-          <p className="text-white/25 text-sm mt-1">{t("أفلام، مسلسلات، وأكثر", "Movies, series, and more")}</p>
+          <p className="text-white/40 text-lg">
+            {t("ابدأ بالبحث عن محتوى", "Start searching for content")}
+          </p>
+          <p className="text-white/25 text-sm mt-1">
+            {t("أفلام، مسلسلات، وأكثر", "Movies, series, and more")}
+          </p>
         </div>
       )}
     </div>

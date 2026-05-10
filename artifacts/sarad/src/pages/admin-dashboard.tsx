@@ -42,10 +42,10 @@ export default function AdminDashboardPage() {
     }
   }, [verify, verifying, navigate]);
 
-  const { data: stats } = useGetHomeStats({ query: { queryKey: getGetHomeStatsQueryKey() } });
-  const { data: allContent } = useListContent({ query: { queryKey: getListContentQueryKey() } });
-  const { data: ads } = useListAds({ query: { queryKey: getListAdsQueryKey() } });
-  const { data: announcements } = useListAnnouncements({ query: { queryKey: getListAnnouncementsQueryKey() } });
+  const { data: stats } = useGetHomeStats();
+  const { data: allContent } = useListContent();
+  const { data: ads } = useListAds();
+  const { data: announcements } = useListAnnouncements();
 
   const createContent = useCreateContent();
   const updateContent = useUpdateContent();

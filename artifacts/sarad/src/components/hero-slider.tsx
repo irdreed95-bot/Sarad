@@ -43,7 +43,7 @@ export function HeroSlider({ items }: { items: SlideItem[] }) {
   return (
     <div className="relative w-full h-[75vh] min-h-[500px] overflow-hidden bg-zinc-950">
       {/* Background */}
-      <AnimatePresence mode="crossfade">
+      <AnimatePresence mode="sync">
         <motion.div
           key={index}
           initial={{ opacity: 0, scale: 1.05 }}
