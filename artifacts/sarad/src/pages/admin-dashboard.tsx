@@ -2,25 +2,28 @@ import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import {
   Film, Image, Layers, LogOut, Plus, Trash2, Star, Search, Tag,
-  CheckCircle, Video,
+  CheckCircle, Video, Radio, Settings2, Megaphone, Pencil, Save,
+  Globe, Download, Bell, Eye, EyeOff, Server,
 } from "lucide-react";
-import {
-  isClientAdmin, clearAdminToken,
-  getAdminToken,
-} from "@/lib/auth";
+import { isClientAdmin, clearAdminToken, getAdminToken } from "@/lib/auth";
 import {
   getCustomContent, addCustomContent, deleteCustomContent,
   getCustomAds, addCustomAd, deleteCustomAd,
   getCustomCategories, addCustomCategory, deleteCustomCategory,
   type CustomContent, type CustomAd, type CustomCategory,
 } from "@/lib/admin-store";
+import {
+  getStreamServers, addStreamServer, updateStreamServer, deleteStreamServer,
+  getAppConfig, saveAppConfig,
+  getHiddenTmdbIds, hideTmdbId, unhideTmdbId,
+  type StreamServer, type AppConfig,
+} from "@/lib/app-settings";
 import { useLang } from "@/lib/language";
 
-type Tab = "content" | "ads" | "categories";
+type Tab = "content" | "servers" | "ads" | "ticker" | "appsettings" | "categories";
 
 const TMDB_W92 = "https://image.tmdb.org/t/p/w92";
 
-// ── Small helpers ────────────────────────────────────────────────────────────
 function isAdminAuthenticated(): boolean {
   const token = getAdminToken();
   if (!token) return false;
@@ -29,43 +32,35 @@ function isAdminAuthenticated(): boolean {
 
 function useDebounce<T>(value: T, delay: number): T {
   const [dv, setDv] = useState(value);
-  useEffect(() => {
-    const t = setTimeout(() => setDv(value), delay);
-    return () => clearTimeout(t);
-  }, [value, delay]);
+  useEffect(() => { const t = setTimeout(() => setDv(value), delay); return () => clearTimeout(t); }, [value, delay]);
   return dv;
 }
 
-// ── Default form states ──────────────────────────────────────────────────────
-const defaultContent = (): Omit<CustomContent, "id" | "createdAt"> => ({
+const defContent = (): Omit<CustomContent, "id" | "createdAt"> => ({
   title: "", titleAr: "", type: "movie", description: "", descriptionAr: "",
   posterUrl: "", backdropUrl: "", videoUrl: "", rating: undefined, year: undefined,
   genres: "", quality: "HD", isFeatured: false,
 });
-
-const defaultAd = (): Omit<CustomAd, "id" | "createdAt"> => ({
-  title: "", type: "banner", imageUrl: "", videoUrl: "", linkUrl: "", isActive: true,
+const defAd = (): Omit<CustomAd, "id" | "createdAt"> => ({ title: "", type: "banner", imageUrl: "", videoUrl: "", linkUrl: "", isActive: true });
+const defCat = (): Omit<CustomCategory, "id" | "createdAt"> => ({ nameEn: "", nameAr: "", tmdbCategoryType: "" });
+const defServer = (): Omit<StreamServer, "id"> => ({
+  label: "",
+  movieUrl: "https://vidsrc.me/embed/movie?tmdb={id}",
+  tvUrl: "https://vidsrc.me/embed/tv?tmdb={id}&season={season}&episode={episode}",
+  isActive: true,
 });
 
-const defaultCategory = (): Omit<CustomCategory, "id" | "createdAt"> => ({
-  nameEn: "", nameAr: "", tmdbCategoryType: "",
-});
-
-// ── Component ────────────────────────────────────────────────────────────────
 export default function AdminDashboardPage() {
   const [, navigate] = useLocation();
   const { t, isRTL } = useLang();
   const [tab, setTab] = useState<Tab>("content");
 
-  // Auth guard
-  useEffect(() => {
-    if (!isAdminAuthenticated()) navigate("/admin");
-  }, [navigate]);
+  useEffect(() => { if (!isAdminAuthenticated()) navigate("/admin"); }, [navigate]);
 
-  // ── Content state ──────────────────────────────────────────────────────────
+  // ── Content ──────────────────────────────────────────────────────────────
   const [content, setContent] = useState<CustomContent[]>(() => getCustomContent());
   const [showContentForm, setShowContentForm] = useState(false);
-  const [contentForm, setContentForm] = useState(defaultContent());
+  const [contentForm, setContentForm] = useState(defContent());
   const [tmdbQuery, setTmdbQuery] = useState("");
   const [tmdbResults, setTmdbResults] = useState<any[]>([]);
   const debouncedQuery = useDebounce(tmdbQuery, 450);
@@ -77,6 +72,18 @@ export default function AdminDashboardPage() {
       .then(d => setTmdbResults((d.results || []).slice(0, 8)))
       .catch(() => setTmdbResults([]));
   }, [debouncedQuery]);
+
+  // Hidden TMDB IDs
+  const [hiddenIds, setHiddenIds] = useState<number[]>(() => getHiddenTmdbIds());
+  const [hideInput, setHideInput] = useState("");
+
+  const handleHideId = () => {
+    const id = parseInt(hideInput.trim(), 10);
+    if (isNaN(id)) return;
+    hideTmdbId(id);
+    setHiddenIds(getHiddenTmdbIds());
+    setHideInput("");
+  };
 
   const fillFromTmdb = (m: any) => {
     setContentForm(f => ({
@@ -94,60 +101,85 @@ export default function AdminDashboardPage() {
     setTmdbResults([]);
   };
 
-  const handleSaveContent = () => {
-    if (!contentForm.title.trim()) return;
-    const newItem = addCustomContent(contentForm);
-    setContent(c => [newItem, ...c]);
-    setShowContentForm(false);
-    setContentForm(defaultContent());
+  // ── Servers ──────────────────────────────────────────────────────────────
+  const [servers, setServers] = useState<StreamServer[]>(() => getStreamServers());
+  const [showServerForm, setShowServerForm] = useState(false);
+  const [serverForm, setServerForm] = useState(defServer());
+  const [editingServerId, setEditingServerId] = useState<string | null>(null);
+
+  const handleSaveServer = () => {
+    if (!serverForm.label.trim()) return;
+    if (editingServerId) {
+      updateStreamServer(editingServerId, serverForm);
+    } else {
+      addStreamServer(serverForm);
+    }
+    setServers(getStreamServers());
+    setShowServerForm(false);
+    setServerForm(defServer());
+    setEditingServerId(null);
   };
 
-  // ── Ads state ──────────────────────────────────────────────────────────────
+  const startEditServer = (s: StreamServer) => {
+    setServerForm({ label: s.label, movieUrl: s.movieUrl, tvUrl: s.tvUrl, isActive: s.isActive });
+    setEditingServerId(s.id);
+    setShowServerForm(true);
+  };
+
+  // ── Ads ──────────────────────────────────────────────────────────────────
   const [ads, setAds] = useState<CustomAd[]>(() => getCustomAds());
   const [showAdForm, setShowAdForm] = useState(false);
-  const [adForm, setAdForm] = useState(defaultAd());
+  const [adForm, setAdForm] = useState(defAd());
 
-  const handleSaveAd = () => {
-    if (!adForm.title.trim()) return;
-    const newAd = addCustomAd(adForm);
-    setAds(a => [newAd, ...a]);
-    setShowAdForm(false);
-    setAdForm(defaultAd());
+  // ── Ticker / Announcement ─────────────────────────────────────────────────
+  const [tickerText, setTickerText] = useState(() => getAppConfig().announcementText);
+  const [tickerSaved, setTickerSaved] = useState(false);
+
+  const saveTicker = () => {
+    const cfg = getAppConfig();
+    saveAppConfig({ ...cfg, announcementText: tickerText });
+    setTickerSaved(true);
+    setTimeout(() => setTickerSaved(false), 2000);
   };
 
-  // ── Categories state ───────────────────────────────────────────────────────
+  // ── App Settings ──────────────────────────────────────────────────────────
+  const [appCfg, setAppCfg] = useState<AppConfig>(() => getAppConfig());
+  const [cfgSaved, setCfgSaved] = useState(false);
+
+  const saveConfig = () => {
+    saveAppConfig(appCfg);
+    setCfgSaved(true);
+    setTimeout(() => setCfgSaved(false), 2000);
+  };
+
+  // ── Categories ────────────────────────────────────────────────────────────
   const [categories, setCategories] = useState<CustomCategory[]>(() => getCustomCategories());
   const [showCatForm, setShowCatForm] = useState(false);
-  const [catForm, setCatForm] = useState(defaultCategory());
+  const [catForm, setCatForm] = useState(defCat());
 
-  const handleSaveCat = () => {
-    if (!catForm.nameEn.trim()) return;
-    const newCat = addCustomCategory(catForm);
-    setCategories(c => [newCat, ...c]);
-    setShowCatForm(false);
-    setCatForm(defaultCategory());
-  };
-
-  const TMDB_CATEGORY_OPTIONS = [
-    { value: "trending",         label: "Trending Now" },
-    { value: "action",           label: "Action & Adventure" },
-    { value: "horror",           label: "Horror" },
-    { value: "comedy",           label: "Comedy" },
+  const TMDB_CATS = [
+    { value: "trending", label: "Trending Now" },
+    { value: "action", label: "Action & Adventure" },
+    { value: "horror", label: "Horror" },
+    { value: "comedy", label: "Comedy" },
     { value: "top-rated-series", label: "Top Rated Series" },
-    { value: "top-rated",        label: "Top Rated Movies" },
-    { value: "drama",            label: "Drama" },
-    { value: "sci-fi",           label: "Sci-Fi" },
+    { value: "top-rated", label: "Top Rated Movies" },
+    { value: "drama", label: "Drama" },
+    { value: "sci-fi", label: "Sci-Fi" },
   ];
 
-  const tabs = [
-    { key: "content" as Tab, icon: Film,   labelEn: "Content",    labelAr: "المحتوى" },
-    { key: "ads"     as Tab, icon: Image,  labelEn: "Ads Manager",labelAr: "مدير الإعلانات" },
-    { key: "categories" as Tab, icon: Layers, labelEn: "Categories", labelAr: "الأقسام" },
+  const TABS = [
+    { key: "content"     as Tab, icon: Film,      labelEn: "Content",       labelAr: "المحتوى" },
+    { key: "servers"     as Tab, icon: Server,     labelEn: "Servers",       labelAr: "الخوادم" },
+    { key: "ads"         as Tab, icon: Image,      labelEn: "Ads",           labelAr: "الإعلانات" },
+    { key: "ticker"      as Tab, icon: Megaphone,  labelEn: "Ticker",        labelAr: "الشريط" },
+    { key: "appsettings" as Tab, icon: Settings2,  labelEn: "App Settings",  labelAr: "إعدادات التطبيق" },
+    { key: "categories"  as Tab, icon: Layers,     labelEn: "Categories",    labelAr: "الأقسام" },
   ];
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
-      {/* ── Admin Header ───────────────────────────────────────────────────── */}
+      {/* Header */}
       <header className="sticky top-0 z-50 bg-black/90 backdrop-blur-md border-b border-white/8 px-4 md:px-8 py-4 flex items-center justify-between">
         <div className={`flex items-center gap-3 ${isRTL ? "flex-row-reverse" : ""}`}>
           <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/30 flex items-center justify-center">
@@ -157,7 +189,7 @@ export default function AdminDashboardPage() {
             <h1 className="font-bold text-base text-white leading-none">
               <span className="text-primary">سرّاد</span>
               <span className="text-white/40 mx-1.5">|</span>
-              {t("لوحة التحكم", "Admin Dashboard")}
+              {t("لوحة التحكم", "God-Mode Admin")}
             </h1>
             <p className="text-white/30 text-[11px] mt-0.5">{t("مرحباً، المسؤول", "Welcome, Administrator")}</p>
           </div>
@@ -172,20 +204,18 @@ export default function AdminDashboardPage() {
         </button>
       </header>
 
-      {/* ── Tab bar ────────────────────────────────────────────────────────── */}
-      <div className="flex gap-0 border-b border-white/8 bg-black/40 px-4 md:px-8 overflow-x-auto">
-        {tabs.map(({ key, icon: Icon, labelEn, labelAr }) => (
+      {/* Tabs */}
+      <div className="flex gap-0 border-b border-white/8 bg-black/40 px-4 md:px-8 overflow-x-auto" style={{ scrollbarWidth: "none" } as React.CSSProperties}>
+        {TABS.map(({ key, icon: Icon, labelEn, labelAr }) => (
           <button
             key={key}
             data-testid={`tab-${key}`}
             onClick={() => setTab(key)}
-            className={`flex items-center gap-2 px-5 py-3.5 text-sm font-medium border-b-2 transition-all whitespace-nowrap ${
-              tab === key
-                ? "border-primary text-primary bg-primary/5"
-                : "border-transparent text-white/40 hover:text-white hover:border-white/20"
+            className={`flex items-center gap-2 px-4 md:px-5 py-3.5 text-sm font-medium border-b-2 transition-all whitespace-nowrap ${
+              tab === key ? "border-primary text-primary bg-primary/5" : "border-transparent text-white/40 hover:text-white hover:border-white/20"
             }`}
           >
-            <Icon size={15} />
+            <Icon size={14} />
             {t(labelAr, labelEn)}
           </button>
         ))}
@@ -193,54 +223,37 @@ export default function AdminDashboardPage() {
 
       <div className="px-4 md:px-8 py-6 max-w-6xl">
 
-        {/* ════════════════════════ CONTENT TAB ════════════════════════ */}
+        {/* ══════════════ CONTENT ══════════════ */}
         {tab === "content" && (
           <div>
             <div className={`flex items-center justify-between mb-5 ${isRTL ? "flex-row-reverse" : ""}`}>
               <div>
-                <h2 className="text-lg font-bold text-white">{t("إدارة المحتوى", "Content Management")}</h2>
-                <p className="text-white/30 text-xs mt-0.5">{t("أضف أفلاماً ومسلسلات مخصصة", "Add custom movies and series")}</p>
+                <h2 className="text-lg font-bold text-white">{t("إدارة المحتوى", "Content Manager")}</h2>
+                <p className="text-white/30 text-xs mt-0.5">{t("أضف أفلاماً ومسلسلات مخصصة", "Add custom movies & series")}</p>
               </div>
               <button
                 data-testid="button-add-content"
-                onClick={() => { setShowContentForm(true); setContentForm(defaultContent()); }}
-                className="flex items-center gap-2 bg-primary text-black px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-primary/90 transition-colors shadow-[0_0_14px_rgba(212,175,55,0.3)]"
+                onClick={() => { setShowContentForm(true); setContentForm(defContent()); }}
+                className="flex items-center gap-2 bg-primary text-black px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-primary/90 transition-colors"
               >
-                <Plus size={15} />
-                {t("إضافة محتوى", "Add Content")}
+                <Plus size={15} />{t("إضافة", "Add Content")}
               </button>
             </div>
 
-            {/* Content form */}
             {showContentForm && (
               <div className="bg-zinc-900 border border-white/8 rounded-2xl p-6 mb-6 shadow-xl">
                 <h3 className="font-bold text-white mb-5">{t("إضافة محتوى جديد", "Add New Content")}</h3>
-
-                {/* TMDB auto-fill */}
                 <div className="mb-5 relative">
-                  <label className="text-xs text-white/40 font-semibold uppercase tracking-wider mb-2 block">
-                    {t("بحث في TMDB للملء التلقائي", "Search TMDB to auto-fill")}
-                  </label>
+                  <label className="text-xs text-white/40 font-semibold uppercase tracking-wider mb-2 block">{t("بحث TMDB للملء التلقائي", "TMDB Auto-Fill")}</label>
                   <div className="relative">
                     <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
-                    <input
-                      value={tmdbQuery}
-                      onChange={e => setTmdbQuery(e.target.value)}
-                      placeholder={t("اسم الفيلم أو المسلسل...", "Movie or series name...")}
-                      className="w-full bg-zinc-800 border border-white/10 rounded-xl pl-9 pr-4 py-2.5 text-sm text-white placeholder-white/20 focus:outline-none focus:border-primary/50"
-                    />
+                    <input value={tmdbQuery} onChange={e => setTmdbQuery(e.target.value)} placeholder={t("اسم الفيلم...", "Movie or series name...")} className="w-full bg-zinc-800 border border-white/10 rounded-xl pl-9 pr-4 py-2.5 text-sm text-white placeholder-white/20 focus:outline-none focus:border-primary/50" />
                   </div>
                   {tmdbResults.length > 0 && (
                     <div className="absolute z-20 left-0 right-0 bg-zinc-800 border border-white/10 rounded-xl mt-1 max-h-52 overflow-y-auto shadow-2xl">
                       {tmdbResults.map(m => (
-                        <button
-                          key={m.id}
-                          onClick={() => fillFromTmdb(m)}
-                          className="w-full text-left px-4 py-3 text-sm hover:bg-zinc-700 transition-colors flex items-center gap-3"
-                        >
-                          {m.poster_path && (
-                            <img src={`${TMDB_W92}${m.poster_path}`} className="w-8 h-11 object-cover rounded-md flex-shrink-0" alt="" />
-                          )}
+                        <button key={m.id} onClick={() => fillFromTmdb(m)} className="w-full text-left px-4 py-3 text-sm hover:bg-zinc-700 transition-colors flex items-center gap-3">
+                          {m.poster_path && <img src={`${TMDB_W92}${m.poster_path}`} className="w-8 h-11 object-cover rounded-md flex-shrink-0" alt="" />}
                           <div>
                             <p className="text-white font-medium">{m.title || m.name}</p>
                             <p className="text-white/30 text-xs">{(m.release_date || m.first_air_date || "").slice(0, 4)} · {m.media_type}</p>
@@ -250,238 +263,307 @@ export default function AdminDashboardPage() {
                     </div>
                   )}
                 </div>
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {[
-                    { key: "title",       label: "Title (English)",      required: true },
-                    { key: "titleAr",     label: "العنوان (عربي)" },
-                    { key: "posterUrl",   label: "Poster Image URL" },
-                    { key: "backdropUrl", label: "Backdrop Image URL" },
-                    { key: "videoUrl",    label: "Custom Video URL (optional)" },
-                    { key: "genres",      label: "Genres (comma-separated)" },
-                    { key: "rating",      label: "Rating (e.g. 8.5)" },
-                    { key: "year",        label: "Year" },
-                    { key: "quality",     label: "Quality (e.g. 4K, HD)" },
-                  ].map(({ key, label, required }) => (
+                    { key: "title", label: "Title *" }, { key: "titleAr", label: "العنوان عربي" },
+                    { key: "posterUrl", label: "Poster URL" }, { key: "backdropUrl", label: "Backdrop URL" },
+                    { key: "videoUrl", label: "Custom Video URL" }, { key: "genres", label: "Genres" },
+                    { key: "rating", label: "Rating" }, { key: "year", label: "Year" },
+                    { key: "quality", label: "Quality" },
+                  ].map(({ key, label }) => (
                     <div key={key}>
-                      <label className="text-xs text-white/40 font-medium mb-1.5 block">{label}{required && " *"}</label>
-                      <input
-                        value={(contentForm as any)[key] ?? ""}
-                        onChange={e => setContentForm(f => ({ ...f, [key]: e.target.value }))}
-                        className="w-full bg-zinc-800 border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-primary/50 placeholder-white/15"
-                      />
+                      <label className="text-xs text-white/40 font-medium mb-1.5 block">{label}</label>
+                      <input value={(contentForm as any)[key] ?? ""} onChange={e => setContentForm(f => ({ ...f, [key]: e.target.value }))} className="w-full bg-zinc-800 border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-primary/50 placeholder-white/15" />
                     </div>
                   ))}
-
                   <div>
                     <label className="text-xs text-white/40 font-medium mb-1.5 block">Type</label>
-                    <select
-                      value={contentForm.type}
-                      onChange={e => setContentForm(f => ({ ...f, type: e.target.value as "movie" | "series" }))}
-                      className="w-full bg-zinc-800 border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none"
-                    >
-                      <option value="movie">🎬 Movie</option>
-                      <option value="series">📺 Series</option>
+                    <select value={contentForm.type} onChange={e => setContentForm(f => ({ ...f, type: e.target.value as "movie" | "series" }))} className="w-full bg-zinc-800 border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none">
+                      <option value="movie">🎬 Movie</option><option value="series">📺 Series</option>
                     </select>
                   </div>
                 </div>
-
-                <div className="flex items-center gap-4 mt-4">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={contentForm.isFeatured || false}
-                      onChange={e => setContentForm(f => ({ ...f, isFeatured: e.target.checked }))}
-                      className="accent-primary w-4 h-4"
-                    />
-                    <span className="text-sm text-white/60">{t("عرض في الواجهة الرئيسية", "Feature on Home")}</span>
-                  </label>
-                </div>
-
+                <label className="flex items-center gap-2 cursor-pointer mt-4">
+                  <input type="checkbox" checked={contentForm.isFeatured || false} onChange={e => setContentForm(f => ({ ...f, isFeatured: e.target.checked }))} className="accent-primary w-4 h-4" />
+                  <span className="text-sm text-white/60">{t("عرض في الصفحة الرئيسية", "Feature on Home")}</span>
+                </label>
                 <div className={`flex gap-3 mt-6 ${isRTL ? "flex-row-reverse" : ""}`}>
-                  <button
-                    onClick={handleSaveContent}
-                    className="bg-primary text-black px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-primary/90 flex items-center gap-2"
-                  >
-                    <CheckCircle size={15} />
-                    {t("حفظ", "Save")}
-                  </button>
-                  <button
-                    onClick={() => { setShowContentForm(false); setContentForm(defaultContent()); }}
-                    className="bg-zinc-800 text-white/60 px-6 py-2.5 rounded-xl text-sm hover:bg-zinc-700"
-                  >
-                    {t("إلغاء", "Cancel")}
-                  </button>
+                  <button onClick={() => { if (!contentForm.title.trim()) return; const n = addCustomContent(contentForm); setContent(c => [n, ...c]); setShowContentForm(false); setContentForm(defContent()); }} className="bg-primary text-black px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-primary/90 flex items-center gap-2"><CheckCircle size={15} />{t("حفظ", "Save")}</button>
+                  <button onClick={() => { setShowContentForm(false); setContentForm(defContent()); }} className="bg-zinc-800 text-white/60 px-6 py-2.5 rounded-xl text-sm hover:bg-zinc-700">{t("إلغاء", "Cancel")}</button>
                 </div>
               </div>
             )}
 
-            {/* Content list */}
-            {content.length === 0 && !showContentForm && (
-              <div className="text-center py-16 text-white/30">
-                <Film size={40} className="mx-auto mb-3 opacity-30" />
-                <p className="text-sm">{t("لا يوجد محتوى مخصص بعد", "No custom content yet")}</p>
+            {/* Hidden TMDB IDs section */}
+            <div className="bg-zinc-900 border border-white/8 rounded-2xl p-4 mb-5">
+              <h3 className="text-sm font-semibold text-white/60 mb-3 flex items-center gap-2"><EyeOff size={14} className="text-red-400" />{t("إخفاء محتوى TMDB", "Hide TMDB Content")}</h3>
+              <div className="flex gap-2 mb-3">
+                <input value={hideInput} onChange={e => setHideInput(e.target.value)} placeholder={t("أدخل TMDB ID للإخفاء", "Enter TMDB ID to hide")} className="flex-1 bg-zinc-800 border border-white/8 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-primary/50 placeholder-white/20" />
+                <button onClick={handleHideId} className="bg-red-500/15 text-red-400 border border-red-500/30 px-4 py-2 rounded-xl text-sm font-semibold hover:bg-red-500/25 transition-colors flex items-center gap-1.5"><EyeOff size={13} />{t("إخفاء", "Hide")}</button>
               </div>
+              {hiddenIds.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {hiddenIds.map(id => (
+                    <span key={id} className="flex items-center gap-1.5 bg-zinc-800 border border-white/8 text-white/60 text-xs px-3 py-1.5 rounded-full">
+                      <Eye size={10} />
+                      ID: {id}
+                      <button onClick={() => { unhideTmdbId(id); setHiddenIds(getHiddenTmdbIds()); }} className="text-red-400 hover:text-red-300 ml-1">✕</button>
+                    </span>
+                  ))}
+                </div>
+              ) : <p className="text-white/25 text-xs">{t("لا توجد عناصر مخفية", "No hidden content")}</p>}
+            </div>
+
+            {content.length === 0 && !showContentForm && (
+              <div className="text-center py-12 text-white/30"><Film size={36} className="mx-auto mb-3 opacity-30" /><p className="text-sm">{t("لا يوجد محتوى مخصص", "No custom content yet")}</p></div>
             )}
             <div className="space-y-2">
               {content.map(item => (
-                <div key={item.id} className="flex items-center gap-3 bg-zinc-900 rounded-xl px-4 py-3 border border-white/5 hover:border-white/10 transition-colors">
-                  {item.posterUrl ? (
-                    <img src={item.posterUrl} alt="" className="w-10 h-14 object-cover rounded-lg flex-shrink-0" />
-                  ) : (
-                    <div className="w-10 h-14 bg-zinc-800 rounded-lg flex-shrink-0 flex items-center justify-center">
-                      <Film size={14} className="text-white/20" />
-                    </div>
-                  )}
+                <div key={item.id} className="flex items-center gap-3 bg-zinc-900 rounded-xl px-4 py-3 border border-white/5">
+                  {item.posterUrl ? <img src={item.posterUrl} alt="" className="w-10 h-14 object-cover rounded-lg flex-shrink-0" /> : <div className="w-10 h-14 bg-zinc-800 rounded-lg flex-shrink-0 flex items-center justify-center"><Film size={14} className="text-white/20" /></div>}
                   <div className="flex-1 min-w-0">
                     <p className="text-white font-medium text-sm truncate">{item.title}</p>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="text-[10px] text-white/40 uppercase bg-zinc-800 px-1.5 py-0.5 rounded">{item.type}</span>
                       {item.isFeatured && <span className="text-[10px] bg-primary/15 text-primary px-1.5 py-0.5 rounded">{t("مميز", "Featured")}</span>}
-                      {item.rating && (
-                        <span className="flex items-center gap-0.5 text-[10px] text-primary">
-                          <Star size={8} fill="currentColor" />{item.rating}
-                        </span>
-                      )}
                     </div>
                   </div>
-                  <button
-                    onClick={() => { deleteCustomContent(item.id); setContent(getCustomContent()); }}
-                    className="p-2 text-white/25 hover:text-red-400 transition-colors"
-                    title="Delete"
-                  >
-                    <Trash2 size={15} />
-                  </button>
+                  <button onClick={() => { deleteCustomContent(item.id); setContent(getCustomContent()); }} className="p-2 text-white/25 hover:text-red-400 transition-colors"><Trash2 size={15} /></button>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* ════════════════════════ ADS TAB ════════════════════════ */}
+        {/* ══════════════ SERVERS ══════════════ */}
+        {tab === "servers" && (
+          <div>
+            <div className={`flex items-center justify-between mb-5 ${isRTL ? "flex-row-reverse" : ""}`}>
+              <div>
+                <h2 className="text-lg font-bold text-white">{t("إدارة الخوادم", "Servers Manager")}</h2>
+                <p className="text-white/30 text-xs mt-0.5">{t("أضف وعدّل خوادم البث العالمية", "Add and manage global streaming servers")}</p>
+              </div>
+              <button onClick={() => { setShowServerForm(true); setServerForm(defServer()); setEditingServerId(null); }} className="flex items-center gap-2 bg-primary text-black px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-primary/90 transition-colors">
+                <Plus size={15} />{t("إضافة خادم", "Add Server")}
+              </button>
+            </div>
+
+            <div className="bg-zinc-900/50 border border-white/5 rounded-2xl px-4 py-3 mb-4">
+              <p className="text-white/30 text-xs">{t("الروابط تدعم المتغيرات:", "URL templates support:")} <code className="text-primary/80 bg-zinc-800 px-1.5 py-0.5 rounded">{"{id}"}</code> <code className="text-primary/80 bg-zinc-800 px-1.5 py-0.5 rounded">{"{season}"}</code> <code className="text-primary/80 bg-zinc-800 px-1.5 py-0.5 rounded">{"{episode}"}</code></p>
+            </div>
+
+            {showServerForm && (
+              <div className="bg-zinc-900 border border-white/8 rounded-2xl p-6 mb-6">
+                <h3 className="font-bold text-white mb-4">{editingServerId ? t("تعديل خادم", "Edit Server") : t("خادم جديد", "New Server")}</h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs text-white/40 font-medium mb-1.5 block">Server Label *</label>
+                    <input value={serverForm.label} onChange={e => setServerForm(f => ({ ...f, label: e.target.value }))} placeholder="e.g. Server 4" className="w-full bg-zinc-800 border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-primary/50" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-white/40 font-medium mb-1.5 block">Movie URL Template</label>
+                    <input value={serverForm.movieUrl} onChange={e => setServerForm(f => ({ ...f, movieUrl: e.target.value }))} placeholder="https://example.com/embed/movie?tmdb={id}" className="w-full bg-zinc-800 border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white font-mono focus:outline-none focus:border-primary/50" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-white/40 font-medium mb-1.5 block">TV URL Template</label>
+                    <input value={serverForm.tvUrl} onChange={e => setServerForm(f => ({ ...f, tvUrl: e.target.value }))} placeholder="https://example.com/embed/tv?tmdb={id}&season={season}&episode={episode}" className="w-full bg-zinc-800 border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white font-mono focus:outline-none focus:border-primary/50" />
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={serverForm.isActive} onChange={e => setServerForm(f => ({ ...f, isActive: e.target.checked }))} className="accent-primary w-4 h-4" />
+                    <span className="text-sm text-white/60">{t("تفعيل الخادم", "Activate server")}</span>
+                  </label>
+                </div>
+                <div className="flex gap-3 mt-5">
+                  <button onClick={handleSaveServer} className="bg-primary text-black px-6 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2"><Save size={14} />{t("حفظ", "Save")}</button>
+                  <button onClick={() => { setShowServerForm(false); setEditingServerId(null); setServerForm(defServer()); }} className="bg-zinc-800 text-white/60 px-6 py-2.5 rounded-xl text-sm">{t("إلغاء", "Cancel")}</button>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              {servers.map((s, idx) => (
+                <div key={s.id} className={`bg-zinc-900 rounded-2xl border px-4 py-4 transition-all ${s.isActive ? "border-white/8" : "border-white/3 opacity-60"}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold ${s.isActive ? "bg-primary/15 text-primary border border-primary/30" : "bg-zinc-800 text-white/30"}`}>
+                        {idx + 1}
+                      </div>
+                      <div>
+                        <p className="text-white font-semibold text-sm">{s.label}</p>
+                        <p className="text-white/25 text-[10px]">{s.isActive ? t("نشط", "Active") : t("معطّل", "Disabled")}</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => startEditServer(s)} className="p-2 text-white/40 hover:text-primary transition-colors"><Pencil size={14} /></button>
+                      <button onClick={() => updateStreamServer(s.id, { isActive: !s.isActive })} className={`p-2 transition-colors ${s.isActive ? "text-green-400 hover:text-green-300" : "text-white/30 hover:text-green-400"}`}><Radio size={14} /></button>
+                      <button onClick={() => { deleteStreamServer(s.id); setServers(getStreamServers()); }} className="p-2 text-white/25 hover:text-red-400 transition-colors"><Trash2 size={14} /></button>
+                    </div>
+                  </div>
+                  <div className="mt-3 space-y-1.5">
+                    <p className="text-white/30 text-[10px] font-mono truncate">🎬 {s.movieUrl}</p>
+                    <p className="text-white/30 text-[10px] font-mono truncate">📺 {s.tvUrl}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════ ADS ══════════════ */}
         {tab === "ads" && (
           <div>
             <div className={`flex items-center justify-between mb-5 ${isRTL ? "flex-row-reverse" : ""}`}>
               <div>
                 <h2 className="text-lg font-bold text-white">{t("مدير الإعلانات", "Ads Manager")}</h2>
-                <p className="text-white/30 text-xs mt-0.5">{t("أضف إعلانات بانر أو فيديو", "Add banner or video ads")}</p>
+                <p className="text-white/30 text-xs mt-0.5">{t("إعلانات بانر وفيديو", "Banner and video ads")}</p>
               </div>
-              <button
-                data-testid="button-add-ad"
-                onClick={() => { setShowAdForm(true); setAdForm(defaultAd()); }}
-                className="flex items-center gap-2 bg-primary text-black px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-primary/90 transition-colors"
-              >
-                <Plus size={15} />
-                {t("إضافة إعلان", "Add Ad")}
+              <button onClick={() => { setShowAdForm(true); setAdForm(defAd()); }} className="flex items-center gap-2 bg-primary text-black px-4 py-2.5 rounded-xl text-sm font-bold">
+                <Plus size={15} />{t("إضافة إعلان", "Add Ad")}
               </button>
             </div>
 
             {showAdForm && (
               <div className="bg-zinc-900 border border-white/8 rounded-2xl p-6 mb-6">
-                <h3 className="font-bold text-white mb-5">{t("إعلان جديد", "New Ad")}</h3>
+                <h3 className="font-bold text-white mb-4">{t("إعلان جديد", "New Ad")}</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs text-white/40 font-medium mb-1.5 block">Title *</label>
-                    <input
-                      value={adForm.title}
-                      onChange={e => setAdForm(f => ({ ...f, title: e.target.value }))}
-                      className="w-full bg-zinc-800 border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-primary/50"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-white/40 font-medium mb-1.5 block">Type</label>
-                    <select
-                      value={adForm.type}
-                      onChange={e => setAdForm(f => ({ ...f, type: e.target.value as "banner" | "video" }))}
-                      className="w-full bg-zinc-800 border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white"
-                    >
-                      <option value="banner">🖼 Banner Image Ad</option>
-                      <option value="video">🎬 Video Ad</option>
-                    </select>
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="text-xs text-white/40 font-medium mb-1.5 block">
-                      {adForm.type === "banner" ? "Banner Image URL *" : "Video URL *"}
-                    </label>
-                    {adForm.type === "banner" ? (
-                      <input
-                        value={adForm.imageUrl || ""}
-                        onChange={e => setAdForm(f => ({ ...f, imageUrl: e.target.value }))}
-                        placeholder="https://example.com/banner.jpg"
-                        className="w-full bg-zinc-800 border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-primary/50"
-                      />
-                    ) : (
-                      <input
-                        value={adForm.videoUrl || ""}
-                        onChange={e => setAdForm(f => ({ ...f, videoUrl: e.target.value }))}
-                        placeholder="https://example.com/ad.mp4"
-                        className="w-full bg-zinc-800 border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-primary/50"
-                      />
-                    )}
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="text-xs text-white/40 font-medium mb-1.5 block">Link URL (optional)</label>
-                    <input
-                      value={adForm.linkUrl || ""}
-                      onChange={e => setAdForm(f => ({ ...f, linkUrl: e.target.value }))}
-                      placeholder="https://example.com"
-                      className="w-full bg-zinc-800 border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-primary/50"
-                    />
-                  </div>
+                  <div><label className="text-xs text-white/40 font-medium mb-1.5 block">Title *</label><input value={adForm.title} onChange={e => setAdForm(f => ({ ...f, title: e.target.value }))} className="w-full bg-zinc-800 border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-primary/50" /></div>
+                  <div><label className="text-xs text-white/40 font-medium mb-1.5 block">Type</label><select value={adForm.type} onChange={e => setAdForm(f => ({ ...f, type: e.target.value as "banner" | "video" }))} className="w-full bg-zinc-800 border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white"><option value="banner">🖼 Banner</option><option value="video">🎬 Video</option></select></div>
+                  <div className="md:col-span-2"><label className="text-xs text-white/40 font-medium mb-1.5 block">{adForm.type === "banner" ? "Banner Image URL" : "Video URL"}</label><input value={adForm.type === "banner" ? (adForm.imageUrl || "") : (adForm.videoUrl || "")} onChange={e => setAdForm(f => adForm.type === "banner" ? { ...f, imageUrl: e.target.value } : { ...f, videoUrl: e.target.value })} className="w-full bg-zinc-800 border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-primary/50" /></div>
+                  <div className="md:col-span-2"><label className="text-xs text-white/40 font-medium mb-1.5 block">Link URL</label><input value={adForm.linkUrl || ""} onChange={e => setAdForm(f => ({ ...f, linkUrl: e.target.value }))} className="w-full bg-zinc-800 border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-primary/50" /></div>
                 </div>
-
-                {/* Preview */}
-                {adForm.imageUrl && (
-                  <div className="mt-4">
-                    <p className="text-xs text-white/30 mb-2">Preview:</p>
-                    <img src={adForm.imageUrl} alt="preview" className="h-20 rounded-xl object-cover border border-white/10" />
-                  </div>
-                )}
-
-                <div className={`flex gap-3 mt-5 ${isRTL ? "flex-row-reverse" : ""}`}>
-                  <button onClick={handleSaveAd} className="bg-primary text-black px-6 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2">
-                    <CheckCircle size={15} />{t("حفظ", "Save")}
-                  </button>
-                  <button onClick={() => setShowAdForm(false)} className="bg-zinc-800 text-white/60 px-6 py-2.5 rounded-xl text-sm">
-                    {t("إلغاء", "Cancel")}
-                  </button>
+                {adForm.imageUrl && <div className="mt-3"><p className="text-xs text-white/30 mb-2">Preview:</p><img src={adForm.imageUrl} alt="" className="h-16 rounded-xl object-cover border border-white/10" /></div>}
+                <div className="flex gap-3 mt-5">
+                  <button onClick={() => { if (!adForm.title.trim()) return; const n = addCustomAd(adForm); setAds(a => [n, ...a]); setShowAdForm(false); setAdForm(defAd()); }} className="bg-primary text-black px-6 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2"><CheckCircle size={15} />{t("حفظ", "Save")}</button>
+                  <button onClick={() => setShowAdForm(false)} className="bg-zinc-800 text-white/60 px-6 py-2.5 rounded-xl text-sm">{t("إلغاء", "Cancel")}</button>
                 </div>
               </div>
             )}
 
-            {ads.length === 0 && !showAdForm && (
-              <div className="text-center py-16 text-white/30">
-                <Image size={40} className="mx-auto mb-3 opacity-30" />
-                <p className="text-sm">{t("لا توجد إعلانات بعد", "No ads yet")}</p>
-              </div>
-            )}
+            {ads.length === 0 && !showAdForm && <div className="text-center py-12 text-white/30"><Image size={36} className="mx-auto mb-3 opacity-30" /><p className="text-sm">{t("لا توجد إعلانات", "No ads yet")}</p></div>}
             <div className="space-y-2">
               {ads.map(ad => (
                 <div key={ad.id} className="flex items-center gap-3 bg-zinc-900 rounded-xl px-4 py-3 border border-white/5">
-                  {ad.imageUrl ? (
-                    <img src={ad.imageUrl} alt="" className="w-20 h-12 object-cover rounded-lg flex-shrink-0 border border-white/10" />
-                  ) : (
-                    <div className="w-20 h-12 bg-zinc-800 rounded-lg flex-shrink-0 flex items-center justify-center">
-                      <Video size={16} className="text-white/20" />
-                    </div>
-                  )}
-                  <div className="flex-1">
-                    <p className="text-white text-sm font-medium">{ad.title}</p>
-                    <span className="text-[10px] text-white/40 uppercase bg-zinc-800 px-1.5 py-0.5 rounded">{ad.type}</span>
-                  </div>
-                  <button
-                    onClick={() => { deleteCustomAd(ad.id); setAds(getCustomAds()); }}
-                    className="p-2 text-white/25 hover:text-red-400 transition-colors"
-                  >
-                    <Trash2 size={15} />
-                  </button>
+                  {ad.imageUrl ? <img src={ad.imageUrl} alt="" className="w-20 h-12 object-cover rounded-lg flex-shrink-0" /> : <div className="w-20 h-12 bg-zinc-800 rounded-lg flex-shrink-0 flex items-center justify-center"><Video size={14} className="text-white/20" /></div>}
+                  <div className="flex-1"><p className="text-white text-sm font-medium">{ad.title}</p><span className="text-[10px] text-white/40 bg-zinc-800 px-1.5 py-0.5 rounded">{ad.type}</span></div>
+                  <button onClick={() => { deleteCustomAd(ad.id); setAds(getCustomAds()); }} className="p-2 text-white/25 hover:text-red-400 transition-colors"><Trash2 size={15} /></button>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* ════════════════════════ CATEGORIES TAB ════════════════════════ */}
+        {/* ══════════════ TICKER ══════════════ */}
+        {tab === "ticker" && (
+          <div>
+            <div className="mb-5">
+              <h2 className="text-lg font-bold text-white mb-1">{t("شريط الإعلانات", "Announcement Ticker")}</h2>
+              <p className="text-white/30 text-xs">{t("نص الشريط المتحرك في أعلى الصفحة الرئيسية", "Scrolling text at the top of the home screen")}</p>
+            </div>
+
+            <div className="bg-zinc-900 border border-white/8 rounded-2xl p-6">
+              <label className="text-xs text-white/40 font-semibold uppercase tracking-wider mb-3 block">{t("نص الشريط", "Ticker Text")}</label>
+              <textarea
+                value={tickerText}
+                onChange={e => setTickerText(e.target.value)}
+                rows={4}
+                placeholder={t("مثال: يتم إرسال إصدار جديد | New version coming soon...", "Example: New version dropping soon...")}
+                className="w-full bg-zinc-800 border border-white/8 rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 focus:outline-none focus:border-primary/50 resize-none leading-relaxed"
+              />
+              <p className="text-white/25 text-xs mt-2">{t("يظهر على الصفحة الرئيسية فوراً بعد الحفظ", "Appears on the home screen immediately after saving")}</p>
+
+              <div className="mt-4 p-4 bg-zinc-800 rounded-xl border border-white/5">
+                <p className="text-white/30 text-xs mb-2">{t("معاينة:", "Preview:")}</p>
+                <div className="overflow-hidden bg-primary text-primary-foreground rounded-lg py-1.5 px-3">
+                  <p className="text-sm font-medium truncate">{tickerText || t("(فارغ)", "(empty)")}</p>
+                </div>
+              </div>
+
+              <button
+                onClick={saveTicker}
+                className="mt-4 flex items-center gap-2 bg-primary text-black px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-primary/90 transition-colors"
+              >
+                {tickerSaved ? <><CheckCircle size={15} />{t("تم الحفظ!", "Saved!")}</> : <><Save size={15} />{t("حفظ", "Save Ticker")}</>}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════ APP SETTINGS ══════════════ */}
+        {tab === "appsettings" && (
+          <div>
+            <div className="mb-5">
+              <h2 className="text-lg font-bold text-white mb-1">{t("إعدادات التطبيق", "App Settings")}</h2>
+              <p className="text-white/30 text-xs">{t("رابط التحديث وروابط التواصل الاجتماعي", "App update link and social media links")}</p>
+            </div>
+
+            <div className="space-y-4">
+              {/* APK Download */}
+              <div className="bg-zinc-900 border border-white/8 rounded-2xl p-6">
+                <h3 className="font-semibold text-white mb-4 flex items-center gap-2"><Download size={16} className="text-primary" />{t("رابط تحديث التطبيق", "App Update Link")}</h3>
+                <label className="text-xs text-white/40 font-medium mb-1.5 block">APK Download URL</label>
+                <input
+                  value={appCfg.apkDownloadUrl}
+                  onChange={e => setAppCfg(c => ({ ...c, apkDownloadUrl: e.target.value }))}
+                  placeholder="https://example.com/sarad-v2.apk"
+                  className="w-full bg-zinc-800 border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-primary/50"
+                />
+                <p className="text-white/25 text-xs mt-2">{t("يظهر في صفحة الإعدادات للمستخدمين", "Shown in Settings page for users to download")}</p>
+              </div>
+
+              {/* Social Links */}
+              <div className="bg-zinc-900 border border-white/8 rounded-2xl p-6">
+                <h3 className="font-semibold text-white mb-4 flex items-center gap-2"><Globe size={16} className="text-primary" />{t("روابط التواصل الاجتماعي", "Social Media Links")}</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {[
+                    { key: "telegram", label: "Telegram URL", placeholder: "https://t.me/sarad_tv", emoji: "✈️" },
+                    { key: "instagram", label: "Instagram URL", placeholder: "https://instagram.com/sarad_tv", emoji: "📸" },
+                    { key: "youtube", label: "YouTube URL", placeholder: "https://youtube.com/@sarad_tv", emoji: "▶️" },
+                    { key: "twitter", label: "X / Twitter URL", placeholder: "https://x.com/sarad_tv", emoji: "🐦" },
+                  ].map(({ key, label, placeholder, emoji }) => (
+                    <div key={key}>
+                      <label className="text-xs text-white/40 font-medium mb-1.5 block">{emoji} {label}</label>
+                      <input
+                        value={(appCfg.socialLinks as any)[key] || ""}
+                        onChange={e => setAppCfg(c => ({ ...c, socialLinks: { ...c.socialLinks, [key]: e.target.value } }))}
+                        placeholder={placeholder}
+                        className="w-full bg-zinc-800 border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-primary/50"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Push Notifications */}
+              <div className="bg-zinc-900 border border-white/8 rounded-2xl p-6">
+                <h3 className="font-semibold text-white mb-4 flex items-center gap-2"><Bell size={16} className="text-primary" />{t("الإشعارات", "Push Notifications")}</h3>
+                <p className="text-white/40 text-sm mb-4">{t("لإرسال إشعار تجريبي لنفسك، استخدم هذا الزر:", "To send a test notification to yourself, use this button:")}</p>
+                <button
+                  onClick={() => {
+                    if ("Notification" in window && Notification.permission === "granted") {
+                      new Notification(t("سرّاد", "Sarad"), { body: t("هذا إشعار تجريبي من لوحة التحكم", "This is a test notification from Admin Dashboard"), icon: "/favicon.svg" });
+                    } else {
+                      Notification.requestPermission();
+                    }
+                  }}
+                  className="flex items-center gap-2 bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-indigo-500/25 transition-colors"
+                >
+                  <Bell size={15} />
+                  {t("إرسال إشعار تجريبي", "Send Test Notification")}
+                </button>
+                <p className="text-white/20 text-xs mt-3">{t("لدمج Firebase FCM، أضف مفتاح FIREBASE_SERVER_KEY في المتغيرات البيئية", "To integrate Firebase FCM, add FIREBASE_SERVER_KEY to environment variables")}</p>
+              </div>
+
+              <button
+                onClick={saveConfig}
+                className="flex items-center gap-2 bg-primary text-black px-8 py-3 rounded-xl text-sm font-bold hover:bg-primary/90 transition-colors shadow-[0_0_14px_rgba(212,175,55,0.3)]"
+              >
+                {cfgSaved ? <><CheckCircle size={15} />{t("تم الحفظ!", "All Saved!")}</> : <><Save size={15} />{t("حفظ جميع الإعدادات", "Save All Settings")}</>}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════ CATEGORIES ══════════════ */}
         {tab === "categories" && (
           <div>
             <div className={`flex items-center justify-between mb-5 ${isRTL ? "flex-row-reverse" : ""}`}>
@@ -489,117 +571,57 @@ export default function AdminDashboardPage() {
                 <h2 className="text-lg font-bold text-white">{t("إدارة الأقسام", "Category Manager")}</h2>
                 <p className="text-white/30 text-xs mt-0.5">{t("أنشئ أقساماً مخصصة على الصفحة الرئيسية", "Create custom sections on the home page")}</p>
               </div>
-              <button
-                data-testid="button-add-category"
-                onClick={() => { setShowCatForm(true); setCatForm(defaultCategory()); }}
-                className="flex items-center gap-2 bg-primary text-black px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-primary/90 transition-colors"
-              >
-                <Plus size={15} />
-                {t("إضافة قسم", "Add Category")}
+              <button onClick={() => { setShowCatForm(true); setCatForm(defCat()); }} className="flex items-center gap-2 bg-primary text-black px-4 py-2.5 rounded-xl text-sm font-bold">
+                <Plus size={15} />{t("إضافة قسم", "Add Category")}
               </button>
             </div>
 
             {showCatForm && (
               <div className="bg-zinc-900 border border-white/8 rounded-2xl p-6 mb-6">
-                <h3 className="font-bold text-white mb-5">{t("قسم جديد", "New Category")}</h3>
+                <h3 className="font-bold text-white mb-4">{t("قسم جديد", "New Category")}</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs text-white/40 font-medium mb-1.5 block">Category Name (English) *</label>
-                    <input
-                      value={catForm.nameEn}
-                      onChange={e => setCatForm(f => ({ ...f, nameEn: e.target.value }))}
-                      placeholder="e.g. Romance"
-                      className="w-full bg-zinc-800 border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-primary/50"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-white/40 font-medium mb-1.5 block">اسم القسم (عربي)</label>
-                    <input
-                      value={catForm.nameAr}
-                      onChange={e => setCatForm(f => ({ ...f, nameAr: e.target.value }))}
-                      placeholder="مثال: رومانسي"
-                      className="w-full bg-zinc-800 border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-primary/50"
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="text-xs text-white/40 font-medium mb-1.5 block">TMDB Content Source</label>
-                    <select
-                      value={catForm.tmdbCategoryType || ""}
-                      onChange={e => setCatForm(f => ({ ...f, tmdbCategoryType: e.target.value }))}
-                      className="w-full bg-zinc-800 border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white"
-                    >
-                      <option value="">-- Select source --</option>
-                      {TMDB_CATEGORY_OPTIONS.map(o => (
-                        <option key={o.value} value={o.value}>{o.label}</option>
-                      ))}
-                    </select>
-                    <p className="text-white/25 text-xs mt-1.5">
-                      This will pull real TMDB content for this category row on the home page.
-                    </p>
-                  </div>
+                  <div><label className="text-xs text-white/40 font-medium mb-1.5 block">Name (English) *</label><input value={catForm.nameEn} onChange={e => setCatForm(f => ({ ...f, nameEn: e.target.value }))} className="w-full bg-zinc-800 border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-primary/50" /></div>
+                  <div><label className="text-xs text-white/40 font-medium mb-1.5 block">الاسم (عربي)</label><input value={catForm.nameAr} onChange={e => setCatForm(f => ({ ...f, nameAr: e.target.value }))} className="w-full bg-zinc-800 border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-primary/50" /></div>
+                  <div className="md:col-span-2"><label className="text-xs text-white/40 font-medium mb-1.5 block">TMDB Content Source</label><select value={catForm.tmdbCategoryType || ""} onChange={e => setCatForm(f => ({ ...f, tmdbCategoryType: e.target.value }))} className="w-full bg-zinc-800 border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white"><option value="">-- Select --</option>{TMDB_CATS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}</select></div>
                 </div>
-                <div className={`flex gap-3 mt-5 ${isRTL ? "flex-row-reverse" : ""}`}>
-                  <button onClick={handleSaveCat} className="bg-primary text-black px-6 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2">
-                    <CheckCircle size={15} />{t("حفظ", "Save")}
-                  </button>
-                  <button onClick={() => setShowCatForm(false)} className="bg-zinc-800 text-white/60 px-6 py-2.5 rounded-xl text-sm">
-                    {t("إلغاء", "Cancel")}
-                  </button>
+                <div className="flex gap-3 mt-5">
+                  <button onClick={() => { if (!catForm.nameEn.trim()) return; const n = addCustomCategory(catForm); setCategories(c => [n, ...c]); setShowCatForm(false); setCatForm(defCat()); }} className="bg-primary text-black px-6 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2"><CheckCircle size={15} />{t("حفظ", "Save")}</button>
+                  <button onClick={() => setShowCatForm(false)} className="bg-zinc-800 text-white/60 px-6 py-2.5 rounded-xl text-sm">{t("إلغاء", "Cancel")}</button>
                 </div>
               </div>
             )}
 
-            {/* Default built-in categories */}
             <div className="mb-4">
-              <p className="text-xs text-white/30 font-semibold uppercase tracking-wider mb-3">{t("الأقسام الافتراضية (نشطة)", "Default Sections (Active)")}</p>
+              <p className="text-xs text-white/30 font-semibold uppercase tracking-wider mb-3">{t("الأقسام الافتراضية", "Default Sections")}</p>
               <div className="space-y-2">
                 {[
-                  { nameEn: "🔥 Trending Now",         nameAr: "🔥 الأكثر رواجاً الآن" },
-                  { nameEn: "⚡ Action & Adventure",    nameAr: "⚡ أكشن ومغامرات" },
-                  { nameEn: "👻 Horror",                nameAr: "👻 رعب" },
-                  { nameEn: "😂 Comedy",                nameAr: "😂 كوميديا" },
-                  { nameEn: "⭐ Top Rated Series",      nameAr: "⭐ أعلى المسلسلات تقييماً" },
+                  { en: "🔥 Trending Now", ar: "🔥 الأكثر رواجاً" },
+                  { en: "⚡ Action & Adventure", ar: "⚡ أكشن ومغامرات" },
+                  { en: "👻 Horror", ar: "👻 رعب" },
+                  { en: "😂 Comedy", ar: "😂 كوميديا" },
+                  { en: "⭐ Top Rated Series", ar: "⭐ أعلى المسلسلات" },
                 ].map(cat => (
-                  <div key={cat.nameEn} className="flex items-center gap-3 bg-zinc-900/50 border border-white/5 rounded-xl px-4 py-3">
-                    <div className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />
-                    <p className="text-white/80 text-sm flex-1">{isRTL ? cat.nameAr : cat.nameEn}</p>
+                  <div key={cat.en} className="flex items-center gap-3 bg-zinc-900/50 border border-white/5 rounded-xl px-4 py-2.5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                    <p className="text-white/70 text-sm flex-1">{isRTL ? cat.ar : cat.en}</p>
                     <span className="text-[10px] text-primary/60 bg-primary/10 px-2 py-0.5 rounded">{t("افتراضي", "Default")}</span>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Custom categories */}
             {categories.length > 0 && (
               <div>
                 <p className="text-xs text-white/30 font-semibold uppercase tracking-wider mb-3 mt-6">{t("الأقسام المخصصة", "Custom Sections")}</p>
                 <div className="space-y-2">
                   {categories.map(cat => (
                     <div key={cat.id} className="flex items-center gap-3 bg-zinc-900 rounded-xl px-4 py-3 border border-white/5">
-                      <Tag size={16} className="text-primary flex-shrink-0" />
-                      <div className="flex-1">
-                        <p className="text-white text-sm font-medium">{cat.nameEn}</p>
-                        {cat.nameAr && <p className="text-white/40 text-xs">{cat.nameAr}</p>}
-                        {cat.tmdbCategoryType && (
-                          <p className="text-primary/50 text-[10px] mt-0.5">TMDB: {cat.tmdbCategoryType}</p>
-                        )}
-                      </div>
-                      <button
-                        onClick={() => { deleteCustomCategory(cat.id); setCategories(getCustomCategories()); }}
-                        className="p-2 text-white/25 hover:text-red-400 transition-colors"
-                      >
-                        <Trash2 size={15} />
-                      </button>
+                      <Tag size={15} className="text-primary flex-shrink-0" />
+                      <div className="flex-1"><p className="text-white text-sm font-medium">{cat.nameEn}</p>{cat.nameAr && <p className="text-white/40 text-xs">{cat.nameAr}</p>}</div>
+                      <button onClick={() => { deleteCustomCategory(cat.id); setCategories(getCustomCategories()); }} className="p-2 text-white/25 hover:text-red-400 transition-colors"><Trash2 size={15} /></button>
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
-
-            {categories.length === 0 && !showCatForm && (
-              <div className="text-center py-10 text-white/30 mt-4">
-                <Layers size={36} className="mx-auto mb-3 opacity-30" />
-                <p className="text-sm">{t("لا توجد أقسام مخصصة — الأقسام الافتراضية نشطة", "No custom categories — defaults are active")}</p>
               </div>
             )}
           </div>

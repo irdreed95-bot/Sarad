@@ -1,0 +1,4 @@
+- [App Settings Architecture](app-settings.md) — admin-controlled settings (servers, ticker, APK, social links, hidden IDs) live in `lib/app-settings.ts`, separate from `lib/admin-store.ts`
+- [Theme Toggle](theme.md) — ThemeProvider in `lib/theme.tsx` toggles `dark` class on `<html>`; persists in `sarad_theme` localStorage key
+- [Ad-Blocker Sandbox](sandbox.md) — iframe sandbox set to exactly `allow-scripts allow-same-origin allow-presentation`; no allow-popups/allow-top-navigation
+- [Football Channels](football-channels.md) — 13 IPTV channels parsed from kazimmt.ami.bd M3U, embedded statically in `live-tv.tsx`; HTTP-only streams — provide Open+Copy buttons as reliable fallback
