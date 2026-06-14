@@ -17,11 +17,17 @@ export interface SocialLinks {
   twitter: string;
 }
 
+export interface DebridConfig {
+  service: "none" | "realdebrid" | "alldebrid";
+  apiKey: string;
+}
+
 export interface AppConfig {
   announcementText: string;
   apkDownloadUrl: string;
   socialLinks: SocialLinks;
   pushNotificationsEnabled: boolean;
+  debrid: DebridConfig;
 }
 
 export interface AppSettings {
@@ -54,6 +60,8 @@ const DEFAULT_SERVERS: StreamServer[] = [
   },
 ];
 
+const DEFAULT_DEBRID: DebridConfig = { service: "none", apiKey: "" };
+
 const DEFAULT_CONFIG: AppConfig = {
   announcementText:
     "مرحباً بكم في سرّاد — البث المميز للأفلام والمسلسلات | Welcome to Sarad — Your Premium Streaming Destination",
@@ -65,6 +73,7 @@ const DEFAULT_CONFIG: AppConfig = {
     twitter: "https://x.com/sarad_tv",
   },
   pushNotificationsEnabled: false,
+  debrid: DEFAULT_DEBRID,
 };
 
 function load(): AppSettings {
@@ -74,7 +83,7 @@ function load(): AppSettings {
     const parsed = JSON.parse(raw) as Partial<AppSettings>;
     return {
       servers: parsed.servers?.length ? parsed.servers : DEFAULT_SERVERS,
-      config: { ...DEFAULT_CONFIG, ...parsed.config, socialLinks: { ...DEFAULT_CONFIG.socialLinks, ...parsed.config?.socialLinks } },
+      config: { ...DEFAULT_CONFIG, ...parsed.config, socialLinks: { ...DEFAULT_CONFIG.socialLinks, ...parsed.config?.socialLinks }, debrid: { ...DEFAULT_DEBRID, ...parsed.config?.debrid } },
       hiddenTmdbIds: parsed.hiddenTmdbIds || [],
     };
   } catch {

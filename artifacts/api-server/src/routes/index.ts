@@ -6,6 +6,7 @@ import adsRouter from "./ads";
 import announcementsRouter from "./announcements";
 import tmdbRouter from "./tmdb";
 import homeRouter from "./home";
+import streamsRouter from "./streams";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(adsRouter);
 router.use(announcementsRouter);
 router.use(tmdbRouter);
 router.use(homeRouter);
+router.use(streamsRouter);
 
 export default router;

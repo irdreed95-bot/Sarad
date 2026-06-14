@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import {
   Film, Image, Layers, LogOut, Plus, Trash2, Star, Search, Tag,
   CheckCircle, Video, Radio, Settings2, Megaphone, Pencil, Save,
-  Globe, Download, Bell, Eye, EyeOff, Server,
+  Globe, Download, Bell, Eye, EyeOff, Server, Zap,
 } from "lucide-react";
 import { isClientAdmin, clearAdminToken, getAdminToken } from "@/lib/auth";
 import {
@@ -551,6 +551,68 @@ export default function AdminDashboardPage() {
                   {t("إرسال إشعار تجريبي", "Send Test Notification")}
                 </button>
                 <p className="text-white/20 text-xs mt-3">{t("لدمج Firebase FCM، أضف مفتاح FIREBASE_SERVER_KEY في المتغيرات البيئية", "To integrate Firebase FCM, add FIREBASE_SERVER_KEY to environment variables")}</p>
+              </div>
+
+              {/* Debrid Integration */}
+              <div className="bg-zinc-900 border border-white/8 rounded-2xl p-6">
+                <h3 className="font-semibold text-white mb-1 flex items-center gap-2">
+                  <Zap size={16} className="text-primary" />
+                  {t("تكامل Debrid — بث مباشر", "Debrid Integration — Direct Streaming")}
+                </h3>
+                <p className="text-white/30 text-xs mb-5">
+                  {t(
+                    "اربط خدمة Debrid لتشغيل مصادر Torrentio مباشرةً داخل مشغّل Video.js بدون أي نوافذ خارجية.",
+                    "Connect a debrid service to play Torrentio sources directly in the Video.js player with no external windows."
+                  )}
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs text-white/40 font-medium mb-1.5 block">{t("خدمة Debrid", "Debrid Service")}</label>
+                    <select
+                      value={appCfg.debrid?.service || "none"}
+                      onChange={e => setAppCfg(c => ({ ...c, debrid: { ...c.debrid, service: e.target.value as any } }))}
+                      className="w-full bg-zinc-800 border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-primary/50"
+                    >
+                      <option value="none">{t("بدون Debrid (عرض معلومات الجودة فقط)", "None (quality info only)")}</option>
+                      <option value="realdebrid">Real-Debrid</option>
+                      <option value="alldebrid">AllDebrid</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-white/40 font-medium mb-1.5 block">
+                      {t("مفتاح API", "API Key")}
+                      {appCfg.debrid?.service === "realdebrid" && (
+                        <a href="https://real-debrid.com/apitoken" target="_blank" rel="noreferrer" className="text-primary hover:underline ms-2 text-[10px]">
+                          {t("احصل على المفتاح", "Get key →")}
+                        </a>
+                      )}
+                      {appCfg.debrid?.service === "alldebrid" && (
+                        <a href="https://alldebrid.com/apikeys/" target="_blank" rel="noreferrer" className="text-primary hover:underline ms-2 text-[10px]">
+                          {t("احصل على المفتاح", "Get key →")}
+                        </a>
+                      )}
+                    </label>
+                    <input
+                      type="password"
+                      value={appCfg.debrid?.apiKey || ""}
+                      onChange={e => setAppCfg(c => ({ ...c, debrid: { ...c.debrid, apiKey: e.target.value } }))}
+                      placeholder={appCfg.debrid?.service === "none" ? t("اختر خدمة أولاً", "Choose a service first") : "API key..."}
+                      disabled={!appCfg.debrid?.service || appCfg.debrid.service === "none"}
+                      className="w-full bg-zinc-800 border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-primary/50 disabled:opacity-40"
+                    />
+                  </div>
+                </div>
+                {appCfg.debrid?.service && appCfg.debrid.service !== "none" && (
+                  <div className="mt-4 bg-primary/8 border border-primary/20 rounded-xl px-4 py-3 flex items-start gap-2">
+                    <Zap size={13} className="text-primary mt-0.5 flex-shrink-0" />
+                    <p className="text-primary/80 text-xs leading-relaxed">
+                      {t(
+                        "بعد الحفظ، سيظهر زر «تشغيل مباشر» في صفحة المشاهدة تحت تبويب «مصادر ذكية». يحوّل Debrid رابط التورنت إلى بث HTTP مباشر داخل Video.js.",
+                        "After saving, a 'Play Direct' button will appear on the watch page under 'Smart Streams'. Debrid converts the torrent link into a direct HTTP stream inside Video.js."
+                      )}
+                    </p>
+                  </div>
+                )}
               </div>
 
               <button
