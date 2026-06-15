@@ -18,40 +18,30 @@ jobs:
       with:
         node-version: 20
 
-    - name: Install pnpm
-      uses: pnpm/action-setup@v4
-      with:
-        version: 10
-
-    - name: Install All Dependencies
+    - name: Isolate App (Bypass Workspace Issues)
       run: |
-        pnpm install --no-frozen-lockfile
-        cd artifacts/sarad
-        pnpm install --no-frozen-lockfile || npm install
-        pnpm add -D @capacitor/cli @capacitor/android
+        # نقل كل ملفات التطبيق للرئيسية للتخلص من عقدة المجلدات المتداخلة
+        cp -r artifacts/sarad/* .
+        cp -r artifacts/sarad/.* . 2>/dev/null || true
+        # مسح إعدادات الـ Workspace تماماً ليعمل السيرفر كأنه تطبيق قياسي
+        rm -rf artifacts pnpm-workspace.yaml pnpm-lock.yaml package-lock.json node_modules
 
-    - name: Build Web App & Configure Capacitor
+    - name: Install Dependencies
       run: |
-        cd artifacts/sarad
-        
-        # بناء ملفات الويب وتوليد مجلد dist
-        PORT=3000 BASE_PATH=/ npx vite build
-        
-        # حقن ملف الإعدادات بشكل إجباري ومباشر داخل السيرفر لمنع خطأ الـ appId
-        cat << 'INNER_EOF' > capacitor.config.json
-        {
-          "appId": "com.sarad.app",
-          "appName": "Sarad",
-          "webDir": "dist"
-        }
-        INNER_EOF
-        
-        # مسح أي مجلد أندرويد قديم متضارب لضمان بناء نظيف 100%
-        rm -rf android
-        
-        # تشغيل الأوامر عبر المسار المحلي للحزم لتفادي ضياع npx في الـ workspace
-        ./node_modules/.bin/cap add android
-        ./node_modules/.bin/cap sync android
+        npm install --legacy-peer-deps
+        npm install @capacitor/cli @capacitor/android --save-dev
+
+    - name: Build Web App
+      run: |
+        PORT=3000 BASE_PATH=/ npx vite build || npm run build
+        mkdir -p dist www
+        cp -r dist/* www/ 2>/dev/null || true
+
+    - name: Initialize & Sync Capacitor Android
+      run: |
+        npx cap init "Sarad" "com.sarad.app" --web-dir=dist || true
+        npx cap add android || true
+        npx cap sync android
 
     - name: Set up JDK 17
       uses: actions/setup-java@v4
@@ -61,7 +51,7 @@ jobs:
 
     - name: Build APK with Gradle
       run: |
-        cd artifacts/sarad/android
+        cd android
         chmod +x gradlew
         ./gradlew assembleDebug
 
@@ -69,4 +59,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: sarad-app-debug-apk
-        path: artifacts/sarad/android/app/build/outputs/apk/debug/app-debug.apk
+        path: android/app/build/outputs/apk/debug/app-debug.apk
