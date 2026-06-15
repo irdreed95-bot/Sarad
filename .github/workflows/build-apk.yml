@@ -36,8 +36,11 @@ jobs:
         # تشغيل بناء الويب لتوليد الملفات
         pnpm run build
         
-        # [تطبيق نصيحة كوبايلوت] إجبار السيرفر على التأكد من وجود مجلد dist لمنع اعتراض كاباسيتور
+        # التأكد من وجود مجلد dist
         mkdir -p dist
+      env:
+        PORT: 3000
+        BASE_PATH: /
 
     - name: Clean & Force Add Android Platform
       run: |
