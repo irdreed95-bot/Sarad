@@ -29,17 +29,14 @@ jobs:
         cd artifacts/sarad
         pnpm install --no-frozen-lockfile || npm install
 
-    - name: Build Web App
+    - name: Build Web App & Auto-Generate Android Platform
       run: |
         cd artifacts/sarad
         PORT=3000 BASE_PATH=/ npx vite build
-        mkdir -p www dist
-        cp -r dist/* www/ 2>/dev/null || true
-        cp -r www/* dist/ 2>/dev/null || true
-
-    - name: Sync Capacitor Android
-      run: |
-        cd artifacts/sarad
+        # تهيئة كاباسيتور تلقائياً بمعلومات افتراضية لمنع خطأ الـ appId
+        npx cap init "Sarad" "com.sarad.app" --web-dir=dist || true
+        # إضافة منصة الأندرويد وبنائها من الصفر داخل السيرفر السحابي
+        npx cap add android || true
         npx cap sync android
 
     - name: Set up JDK 17
@@ -59,4 +56,3 @@ jobs:
       with:
         name: sarad-app-debug-apk
         path: artifacts/sarad/android/app/build/outputs/apk/debug/app-debug.apk
-      
