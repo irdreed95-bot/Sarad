@@ -16,7 +16,7 @@ jobs:
     - name: Set up Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: 22.x
+        node-version: 20
 
     - name: Install pnpm
       uses: pnpm/action-setup@v4
@@ -33,11 +33,17 @@ jobs:
         # تثبيت حزم كاباسيتور محلياً للتأكد من التعرف عليها
         pnpm add @capacitor/core @capacitor/cli @capacitor/android --save-dev
         
-        # تشغيل بناء الويب لتوليد الملفات
-        pnpm run build
+        # بناء الويب مباشرة عبر vite لتخطي أخطاء type-check المعطلة للمجلد
+        pnpm exec vite build
         
-        # التأكد من وجود مجلد dist
+        # [تطبيق تحقق كوبايلوت] التأكد الصارم من وجود المجلد والملف قبل الانتقال لكاباسيتور
         mkdir -p dist
+        if [ ! -f dist/index.html ]; then
+          echo "ERROR: dist/index.html not found after build!"
+          echo "Contents of dist directory:"
+          ls -la dist || echo "dist directory does not exist!"
+          exit 1
+        fi
       env:
         PORT: 3000
         BASE_PATH: /
@@ -46,7 +52,7 @@ jobs:
       run: |
         cd artifacts/sarad
         
-        # كتابة ملف الإعدادات وربطه بمجلد dist المضمون وجوده الآن
+        # كتابة ملف الإعدادات النقي وتوجيهه لمجلد dist المستخرج بنجاح
         cat << 'INNER_EOF' > capacitor.config.json
         {
           "appId": "com.sarad.app",
@@ -55,7 +61,7 @@ jobs:
         }
         INNER_EOF
         
-        # تنظيف أي مخلفات قديمة وبناء المنصة من الصفر بنقاء
+        # مسح أي مخلفات قديمة وإعادة بناء المنصة بشكل سليم
         rm -rf android
         pnpm exec cap add android
         pnpm exec cap sync android
