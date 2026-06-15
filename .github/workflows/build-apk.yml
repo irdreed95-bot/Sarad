@@ -26,18 +26,32 @@ jobs:
     - name: Install Dependencies
       run: |
         pnpm install --no-frozen-lockfile
+        cd artifacts/sarad
+        pnpm add -D @capacitor/cli @capacitor/android
 
     - name: Build Web App
       run: |
         cd artifacts/sarad
         pnpm run build
 
-    - name: Complete Capacitor Android Initialization
+    - name: Clean and Reconstruct Capacitor Android
       run: |
         cd artifacts/sarad
-        # تهيئة كاباسيتور وإضافة منصة الأندرويد برمجياً داخل السيرفر لضمان وجود المجلد
-        pnpm exec cap init "Sarad" "com.sarad.app" --web-dir=dist || true
-        pnpm exec cap add android || true
+        
+        # 1. إجبار السيرفر على كتابة ملف إعدادات نقي يوجه مباشرة لمجلد dist
+        cat << 'INNER_EOF' > capacitor.config.json
+        {
+          "appId": "com.sarad.app",
+          "appName": "Sarad",
+          "webDir": "dist"
+        }
+        INNER_EOF
+        
+        # 2. مسح مجلد الأندرويد القديم تماماً لمنع أي ملفات تالفة أو تعارض
+        rm -rf android
+        
+        # 3. إعادة إنشاء منصة الأندرويد وعمل المزامنة بشكل نظيف وآلي
+        pnpm exec cap add android
         pnpm exec cap sync android
 
     - name: Set up JDK 17
