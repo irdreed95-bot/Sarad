@@ -16,7 +16,7 @@ jobs:
     - name: Set up Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: 22
+        node-version: 20
 
     - name: Install pnpm
       uses: pnpm/action-setup@v4
@@ -30,18 +30,11 @@ jobs:
     - name: Build Web App & Ensure Assets Directory
       run: |
         cd artifacts/sarad
-        # تثبيت حزم كاباسيتور محلياً للتأكد من التعرف عليها
         pnpm add @capacitor/core @capacitor/cli @capacitor/android --save-dev
-        
-        # بناء الويب مباشرة عبر vite لتخطي أخطاء type-check المعطلة للمجلد
         pnpm exec vite build
-        
-        # [تطبيق تحقق كوبايلوت] التأكد الصارم من وجود المجلد والملف قبل الانتقال لكاباسيتور
         mkdir -p dist
         if [ ! -f dist/index.html ]; then
           echo "ERROR: dist/index.html not found after build!"
-          echo "Contents of dist directory:"
-          ls -la dist || echo "dist directory does not exist!"
           exit 1
         fi
       env:
@@ -51,8 +44,6 @@ jobs:
     - name: Clean & Force Add Android Platform
       run: |
         cd artifacts/sarad
-        
-        # كتابة ملف الإعدادات النقي وتوجيهه لمجلد dist المستخرج بنجاح
         cat << 'INNER_EOF' > capacitor.config.json
         {
           "appId": "com.sarad.app",
@@ -60,13 +51,11 @@ jobs:
           "webDir": "dist"
         }
         INNER_EOF
-        
-        # مسح أي مخلفات قديمة وإعادة بناء المنصة بشكل سليم
         rm -rf android
         pnpm exec cap add android
         pnpm exec cap sync android
 
-        - name: Set up JDK 21
+    - name: Set up JDK 21
       uses: actions/setup-java@v4
       with:
         distribution: 'zulu'
@@ -76,7 +65,7 @@ jobs:
       run: |
         cd artifacts/sarad/android
         chmod +x gradlew
-        ./gradlew assembleDebug
+        ./gradlew assembleDebug،
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
