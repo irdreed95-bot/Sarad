@@ -23,18 +23,24 @@ jobs:
       with:
         version: 10
 
-    - name: Install dependencies
-      run: pnpm install --no-frozen-lockfile
+    - name: Install All Dependencies
+      run: |
+        pnpm install --no-frozen-lockfile
+        cd artifacts/sarad
+        pnpm install --no-frozen-lockfile || npm install
 
     - name: Build Web App
       run: |
         cd artifacts/sarad
         PORT=3000 BASE_PATH=/ npx vite build
+        mkdir -p www dist
+        cp -r dist/* www/ 2>/dev/null || true
+        cp -r www/* dist/ 2>/dev/null || true
 
     - name: Sync Capacitor Android
       run: |
         cd artifacts/sarad
-        npx @capacitor/cli sync android
+        npx cap sync android
 
     - name: Set up JDK 17
       uses: actions/setup-java@v4
@@ -53,4 +59,4 @@ jobs:
       with:
         name: sarad-app-debug-apk
         path: artifacts/sarad/android/app/build/outputs/apk/debug/app-debug.apk
-        
+      
