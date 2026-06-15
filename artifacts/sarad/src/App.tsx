@@ -47,7 +47,7 @@ function App() {
       <TooltipProvider>
         <ThemeProvider>
           <LanguageProvider>
-            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <WouterRouter>
               <AppShell />
             </WouterRouter>
           </LanguageProvider>
