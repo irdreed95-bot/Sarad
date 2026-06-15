@@ -615,6 +615,49 @@ export default function AdminDashboardPage() {
                 )}
               </div>
 
+              {/* Orion API */}
+              <div className="bg-zinc-900/60 border border-white/6 rounded-2xl p-6">
+                <h3 className="font-bold text-white mb-1">{t("Orion API", "Orion API")}</h3>
+                <p className="text-white/30 text-xs mb-5">
+                  {t(
+                    "أضف مفتاح Orion API لتفعيل مصدر بث إضافي عالي الجودة (orionoid.com). اتركه فارغاً لتجاهله.",
+                    "Add your Orion API key to enable an additional high-quality stream source (orionoid.com). Leave blank to skip."
+                  )}
+                </p>
+                <div className="flex gap-3 items-end">
+                  <div className="flex-1">
+                    <label className="text-xs text-white/40 font-medium mb-1.5 block">
+                      {t("مفتاح API الخاص بك", "Your Orion API Key")}
+                      <a
+                        href="https://orionoid.com/web/dashboard#api"
+                        target="_blank" rel="noreferrer"
+                        className="text-primary hover:underline ms-2 text-[10px]"
+                      >
+                        {t("احصل على المفتاح →", "Get key →")}
+                      </a>
+                    </label>
+                    <input
+                      type="password"
+                      value={appCfg.orionApiKey || ""}
+                      onChange={e => setAppCfg(c => ({ ...c, orionApiKey: e.target.value }))}
+                      placeholder="orion_user_api_key..."
+                      className="w-full bg-zinc-800 border border-white/8 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-primary/50"
+                    />
+                  </div>
+                </div>
+                {appCfg.orionApiKey && (
+                  <div className="mt-3 bg-purple-500/8 border border-purple-500/20 rounded-xl px-4 py-3 flex items-start gap-2">
+                    <span className="text-lg flex-shrink-0">🔮</span>
+                    <p className="text-purple-300/70 text-xs leading-relaxed">
+                      {t(
+                        "سيُضاف Orion كمصدر إضافي في «مصادر ذكية» جنباً إلى جنب مع Torrentio و1337x.",
+                        "Orion will be added as an extra source in Smart Streams alongside Torrentio and 1337x."
+                      )}
+                    </p>
+                  </div>
+                )}
+              </div>
+
               <button
                 onClick={saveConfig}
                 className="flex items-center gap-2 bg-primary text-black px-8 py-3 rounded-xl text-sm font-bold hover:bg-primary/90 transition-colors shadow-[0_0_14px_rgba(212,175,55,0.3)]"

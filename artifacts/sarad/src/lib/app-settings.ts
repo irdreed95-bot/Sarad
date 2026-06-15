@@ -28,6 +28,7 @@ export interface AppConfig {
   socialLinks: SocialLinks;
   pushNotificationsEnabled: boolean;
   debrid: DebridConfig;
+  orionApiKey: string;
 }
 
 export interface AppSettings {
@@ -74,6 +75,7 @@ const DEFAULT_CONFIG: AppConfig = {
   },
   pushNotificationsEnabled: false,
   debrid: DEFAULT_DEBRID,
+  orionApiKey: "",
 };
 
 function load(): AppSettings {
@@ -83,7 +85,7 @@ function load(): AppSettings {
     const parsed = JSON.parse(raw) as Partial<AppSettings>;
     return {
       servers: parsed.servers?.length ? parsed.servers : DEFAULT_SERVERS,
-      config: { ...DEFAULT_CONFIG, ...parsed.config, socialLinks: { ...DEFAULT_CONFIG.socialLinks, ...parsed.config?.socialLinks }, debrid: { ...DEFAULT_DEBRID, ...parsed.config?.debrid } },
+      config: { ...DEFAULT_CONFIG, ...parsed.config, socialLinks: { ...DEFAULT_CONFIG.socialLinks, ...parsed.config?.socialLinks }, debrid: { ...DEFAULT_DEBRID, ...parsed.config?.debrid }, orionApiKey: parsed.config?.orionApiKey ?? "" },
       hiddenTmdbIds: parsed.hiddenTmdbIds || [],
     };
   } catch {

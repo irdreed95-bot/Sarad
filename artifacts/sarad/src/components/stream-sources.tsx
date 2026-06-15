@@ -4,13 +4,13 @@
  * Fully client-side, no backend dependency.
  * All API calls use absolute https:// URLs.
  *
- * Sources: Torrentio (CORS proxy) + YTS + EZTV + apibay
+ * Sources: Torrentio · Deflix · Orion · 1337x · YTS · EZTV · ThePirateBay
  * Debrid:  Real-Debrid / AllDebrid resolved client-side
  */
 import { useEffect, useState, useCallback } from "react";
 import {
   Zap, Copy, Check, Loader2, Wifi, AlertCircle,
-  Play, Shield, Film, ChevronDown, RefreshCw, Info,
+  Play, Shield, Film, ChevronDown, RefreshCw, Info, ExternalLink,
 } from "lucide-react";
 import { useLang }       from "@/lib/language";
 import { getAppConfig }  from "@/lib/app-settings";
@@ -23,12 +23,12 @@ export type { ParsedStream } from "@/lib/stream-scraper";
 import type { ParsedStream } from "@/lib/stream-scraper";
 
 interface Props {
-  tmdbId:        number;
-  type:          "movie" | "tv";
-  season?:       number;
-  episode?:      number;
-  title?:        string;
-  onPlayDirect:  (url: string, stream: ParsedStream) => void;
+  tmdbId:       number;
+  type:         "movie" | "tv";
+  season?:      number;
+  episode?:     number;
+  title?:       string;
+  onPlayDirect: (url: string, stream: ParsedStream) => void;
 }
 
 // ── Badge styles ──────────────────────────────────────────────────────────────
@@ -45,10 +45,23 @@ const HDR_COLORS: Record<string, string> = {
   "HDR":          "bg-amber-500/15  text-amber-300  border-amber-500/30",
 };
 const SOURCE_ICONS: Record<string, string> = {
-  "YTS": "🟡", "RARBG": "🔴", "1337X": "🔵", "YIFY": "🟡",
-  "EZTV": "📺", "ThePirateBay": "☠️", "KickassTorrents": "🐱",
-  "TorrentGalaxy": "🌌", "Torrentio": "⚡",
+  "yts":           "🟡",
+  "rarbg":         "🔴",
+  "1337x":         "🔵",
+  "yify":          "🟡",
+  "eztv":          "📺",
+  "thepiratebay":  "☠️",
+  "kickass":       "🐱",
+  "torrentgalaxy": "🌌",
+  "torrentio":     "⚡",
+  "deflix":        "🚀",
+  "orion":         "🔮",
 };
+
+function sourceIcon(src: string): string {
+  const lower = src.toLowerCase();
+  return Object.entries(SOURCE_ICONS).find(([k]) => lower.includes(k))?.[1] || "🌐";
+}
 
 // ── Component ──────────────────────────────────────────────────────────────────
 export function StreamSources({
@@ -64,9 +77,11 @@ export function StreamSources({
   const [copiedId,     setCopiedId]     = useState<string | null>(null);
   const [showAll,      setShowAll]      = useState(false);
 
-  const config    = getAppConfig();
-  const debrid    = config.debrid;
-  const hasDebrid = !!(debrid?.service && debrid.service !== "none" && debrid.apiKey);
+  const config      = getAppConfig();
+  const debrid      = config.debrid;
+  const orionKey    = config.orionApiKey || "";
+  const hasDebrid   = !!(debrid?.service && debrid.service !== "none" && debrid.apiKey);
+  const hasOrion    = !!orionKey;
 
   const fetchStreams = useCallback(async () => {
     if (!tmdbId) return;
@@ -76,17 +91,21 @@ export function StreamSources({
     setImdbId(null);
 
     try {
-      // 1. TMDB → IMDB ID (direct TMDB API, absolute URL)
+      // 1. TMDB → IMDb ID (direct TMDB API, absolute URL)
       const resolvedImdbId = await getImdbId(tmdbId, type);
       if (!resolvedImdbId) {
-        setError(t("لم يُعثر على معرّف IMDB لهذا المحتوى.", "IMDB ID not found for this title."));
+        setError(t("لم يُعثر على معرّف IMDb لهذا المحتوى.", "IMDb ID not found for this title."));
         setLoading(false);
         return;
       }
       setImdbId(resolvedImdbId);
 
-      // 2. Aggregate: Torrentio + YTS + EZTV + apibay (all absolute https:// URLs)
-      const result = await getStreams(resolvedImdbId, type, season, episode, title);
+      // 2. Aggregate all sources (all absolute https:// URLs)
+      const result = await getStreams(
+        resolvedImdbId, type, season, episode, title,
+        hasDebrid ? debrid : null,
+        orionKey,
+      );
 
       if (result.streams.length === 0) {
         setError(t("لم يُعثر على مصادر لهذا المحتوى.", "No streams found for this content."));
@@ -100,22 +119,28 @@ export function StreamSources({
     } finally {
       setLoading(false);
     }
-  }, [tmdbId, type, season, episode, title]);
+  }, [tmdbId, type, season, episode, title, hasDebrid, orionKey]);
 
   useEffect(() => { fetchStreams(); }, [fetchStreams]);
 
   const copyMagnet = (stream: ParsedStream) => {
-    navigator.clipboard.writeText(stream.magnetUri).catch(() => undefined);
+    const text = stream.magnetUri || stream.directUrl || "";
+    navigator.clipboard.writeText(text).catch(() => undefined);
     setCopiedId(stream.id);
     setTimeout(() => setCopiedId(null), 2500);
   };
 
   const resolveAndPlay = async (stream: ParsedStream) => {
+    // Direct-link streams (Deflix) play immediately — no debrid needed
+    if (stream.isDirectLink && stream.directUrl) {
+      onPlayDirect(stream.directUrl, stream);
+      return;
+    }
     if (!hasDebrid) { copyMagnet(stream); return; }
+
     setResolvingId(stream.id);
     setResolveError(null);
     try {
-      // Debrid resolution via direct https:// API calls (no backend)
       const url = await resolveDebrid(debrid!, stream);
       onPlayDirect(url, stream);
     } catch (err: any) {
@@ -136,7 +161,9 @@ export function StreamSources({
     <div className="flex flex-col items-center justify-center py-12 gap-3 text-white/40">
       <Loader2 size={28} className="animate-spin text-primary" />
       <p className="text-sm font-medium">{t("جارٍ البحث عن مصادر البث...", "Scanning stream sources...")}</p>
-      <p className="text-[11px] text-white/25">Torrentio • YTS • EZTV • SQF</p>
+      <p className="text-[11px] text-white/25">
+        Torrentio{hasDebrid ? " · Deflix" : ""}{hasOrion ? " · Orion" : ""} · 1337x · YTS · EZTV · TPB · SQF
+      </p>
     </div>
   );
 
@@ -176,7 +203,7 @@ export function StreamSources({
         </button>
       </div>
 
-      {/* Debrid notice */}
+      {/* Status banners */}
       {!hasDebrid && (
         <div className="flex items-start gap-2 bg-zinc-900/60 border border-white/6 rounded-xl px-3 py-2.5">
           <Info size={12} className="text-primary/50 mt-0.5 flex-shrink-0" />
@@ -209,27 +236,40 @@ export function StreamSources({
       {/* Stream cards */}
       <div className="space-y-2">
         {displayed.map((stream) => {
-          const isResolving = resolvingId === stream.id;
-          const isCopied    = copiedId    === stream.id;
-          const srcIcon = Object.entries(SOURCE_ICONS).find(([k]) =>
-            stream.source.toLowerCase().includes(k.toLowerCase())
-          )?.[1] || "🌐";
+          const isResolving  = resolvingId === stream.id;
+          const isCopied     = copiedId    === stream.id;
+          const isDirect     = !!stream.isDirectLink;
+          const canPlayNow   = isDirect || hasDebrid;
+          const srcIcon      = sourceIcon(stream.source);
 
           return (
             <div
               key={stream.id}
-              className="bg-zinc-900/80 border border-white/7 rounded-2xl overflow-hidden hover:border-white/14 transition-colors"
+              className={`bg-zinc-900/80 border rounded-2xl overflow-hidden transition-colors ${
+                isDirect
+                  ? "border-green-500/20 hover:border-green-500/35"
+                  : "border-white/7 hover:border-white/14"
+              }`}
             >
               <div className={`flex items-center gap-3 px-4 py-3 ${isRTL ? "flex-row-reverse" : ""}`}>
-                <div className="w-9 h-9 rounded-xl bg-zinc-800 border border-white/8 flex items-center justify-center text-lg flex-shrink-0">
+                {/* Source icon */}
+                <div className={`w-9 h-9 rounded-xl border flex items-center justify-center text-lg flex-shrink-0 ${
+                  isDirect ? "bg-green-900/30 border-green-500/25" : "bg-zinc-800 border-white/8"
+                }`}>
                   {srcIcon}
                 </div>
 
                 <div className="flex-1 min-w-0">
+                  {/* Quality badges */}
                   <div className={`flex flex-wrap items-center gap-1.5 mb-1 ${isRTL ? "flex-row-reverse" : ""}`}>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${QUALITY_COLORS[stream.quality] || QUALITY_COLORS["SD"]}`}>
                       {stream.quality}
                     </span>
+                    {isDirect && (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md border bg-green-500/15 text-green-300 border-green-500/30">
+                        DIRECT
+                      </span>
+                    )}
                     {stream.hdr && (
                       <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md border ${HDR_COLORS[stream.hdr] || "bg-zinc-800 text-zinc-400 border-zinc-700"}`}>
                         {stream.hdr}
@@ -247,6 +287,7 @@ export function StreamSources({
                     )}
                   </div>
 
+                  {/* Meta row */}
                   <div className={`flex items-center gap-3 ${isRTL ? "flex-row-reverse" : ""}`}>
                     <span className="text-white/50 text-xs font-medium truncate">{stream.source}</span>
                     {stream.size && <span className="text-white/25 text-[10px] flex-shrink-0">💾 {stream.size}</span>}
@@ -258,6 +299,7 @@ export function StreamSources({
                         <Wifi size={9} />{stream.seeders}
                       </span>
                     )}
+                    {/* Quality bar */}
                     <div className={`flex gap-0.5 ${isRTL ? "me-auto" : "ms-auto"} flex-shrink-0`}>
                       {[...Array(5)].map((_, i) => (
                         <div key={i} className={`w-1 h-3 rounded-sm ${i < Math.ceil(stream.qualityScore / 28) ? "bg-primary/70" : "bg-zinc-700"}`} />
@@ -267,20 +309,25 @@ export function StreamSources({
                 </div>
               </div>
 
+              {/* Action row */}
               <div className={`flex border-t border-white/5 ${isRTL ? "flex-row-reverse" : ""}`}>
                 <button
                   onClick={() => resolveAndPlay(stream)}
                   disabled={isResolving}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold transition-colors border-e border-white/5 ${
-                    hasDebrid
-                      ? "text-primary hover:bg-primary/8"
-                      : "text-white/35 hover:text-primary hover:bg-white/3"
-                  } disabled:opacity-50`}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold transition-colors border-e border-white/5 disabled:opacity-50 ${
+                    isDirect
+                      ? "text-green-300 hover:bg-green-500/10"
+                      : canPlayNow
+                        ? "text-primary hover:bg-primary/8"
+                        : "text-white/35 hover:text-primary hover:bg-white/3"
+                  }`}
                 >
                   {isResolving ? (
                     <><Loader2 size={12} className="animate-spin" />{t("جارٍ التحليل...", "Resolving...")}</>
-                  ) : hasDebrid ? (
-                    <><Play size={12} fill="currentColor" />{t("تشغيل مباشر", "Play Direct")}</>
+                  ) : isDirect ? (
+                    <><ExternalLink size={12} />{t("تشغيل مباشر", "Play Direct")}</>
+                  ) : canPlayNow ? (
+                    <><Play size={12} fill="currentColor" />{t("تشغيل", "Play")}</>
                   ) : (
                     <><Zap size={12} />{t("معلومات الجودة", "Quality Info")}</>
                   )}
@@ -289,11 +336,13 @@ export function StreamSources({
                 <button
                   onClick={() => copyMagnet(stream)}
                   className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-white/30 hover:text-primary hover:bg-primary/5 transition-colors text-xs flex-shrink-0"
-                  title={t("نسخ رابط المغناطيس", "Copy Magnet Link")}
+                  title={isDirect
+                    ? t("نسخ الرابط المباشر", "Copy Direct URL")
+                    : t("نسخ رابط المغناطيس", "Copy Magnet Link")}
                 >
                   {isCopied
                     ? <><Check size={12} className="text-green-400" /><span className="text-green-400">{t("تم", "Copied")}</span></>
-                    : <><Copy size={12} /><span>{t("مغناطيس", "Magnet")}</span></>}
+                    : <><Copy size={12} /><span>{isDirect ? t("رابط", "URL") : t("مغناطيس", "Magnet")}</span></>}
                 </button>
               </div>
             </div>
