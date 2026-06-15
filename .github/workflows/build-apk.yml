@@ -34,7 +34,7 @@ jobs:
     - name: Sync Capacitor Android
       run: |
         cd artifacts/sarad
-        pnpm exec cap sync android
+        npx @capacitor/cli cap sync android
 
     - name: Set up JDK 17
       uses: actions/setup-java@v4
