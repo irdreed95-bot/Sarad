@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { ChevronLeft, ChevronRight, Star, Play } from "lucide-react";
-import { useLang } from "@/lib/language";
+import { useLang }        from "@/lib/language";
+import { fetchCategory }  from "@/lib/tmdb";
 
 const IMG_W780 = "https://image.tmdb.org/t/p/w780";
 
@@ -32,8 +33,7 @@ export function TmdbRow({ titleEn, titleAr, category, mediaType }: TmdbRowProps)
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/tmdb/category?type=${category}`)
-      .then(r => r.ok ? r.json() : { results: [] })
+    fetchCategory(category)
       .then(data => setItems((data.results || []).slice(0, 24)))
       .catch(() => setItems([]))
       .finally(() => setLoading(false));

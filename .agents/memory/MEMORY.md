@@ -2,3 +2,4 @@
 - [Theme Toggle](theme.md) — ThemeProvider in `lib/theme.tsx` toggles `dark` class on `<html>`; persists in `sarad_theme` localStorage key
 - [Ad-Blocker Sandbox](sandbox.md) — iframe sandbox set to exactly `allow-scripts allow-same-origin allow-presentation`; no allow-popups/allow-top-navigation
 - [Football Channels](football-channels.md) — 13 IPTV channels parsed from kazimmt.ami.bd M3U, embedded statically in `live-tv.tsx`; HTTP-only streams — provide Open+Copy buttons as reliable fallback
+- [Client-side streaming](streaming-arch.md) — fully standalone; no backend for streaming/TMDB/debrid; all calls use absolute https:// URLs; CORS proxy (corsproxy.io → allorigins.win fallback) wraps Torrentio + apibay; YTS + EZTV called direct.

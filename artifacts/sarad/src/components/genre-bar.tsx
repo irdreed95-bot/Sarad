@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { ChevronLeft, ChevronRight, Clapperboard, Star } from "lucide-react";
 import { useLocation } from "wouter";
-import { useLang } from "@/lib/language";
+import { useLang }       from "@/lib/language";
+import { fetchDiscover } from "@/lib/tmdb";
 
 const TMDB_IMG = "https://image.tmdb.org/t/p/w300";
 
@@ -120,8 +121,7 @@ export function GenreMoviesRow({ genreId, genreName }: GenreMoviesRowProps) {
   useEffect(() => {
     setLoading(true);
     setMovies([]);
-    fetch(`/api/tmdb/discover?genreId=${genreId}`)
-      .then((r) => (r.ok ? r.json() : { results: [] }))
+    fetchDiscover(genreId)
       .then((data) => setMovies(data.results || []))
       .catch(() => setMovies([]))
       .finally(() => setLoading(false));

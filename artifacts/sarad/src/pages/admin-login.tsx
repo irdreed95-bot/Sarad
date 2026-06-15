@@ -30,25 +30,9 @@ export default function AdminLoginPage() {
       return;
     }
 
-    // API fallback
-    try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), password }),
-      });
-      const data = await res.json();
-      if (res.ok && data.token) {
-        setAdminToken(data.token);
-        navigate("/admin/dashboard");
-      } else {
-        setError(t("بيانات الدخول غير صحيحة", "Invalid credentials"));
-      }
-    } catch {
-      setError(t("بيانات الدخول غير صحيحة", "Invalid credentials"));
-    } finally {
-      setLoading(false);
-    }
+    // No backend available — client-side only
+    setError(t("بيانات الدخول غير صحيحة", "Invalid credentials"));
+    setLoading(false);
   };
 
   return (

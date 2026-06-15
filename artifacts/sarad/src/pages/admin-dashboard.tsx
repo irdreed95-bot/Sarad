@@ -18,7 +18,8 @@ import {
   getHiddenTmdbIds, hideTmdbId, unhideTmdbId,
   type StreamServer, type AppConfig,
 } from "@/lib/app-settings";
-import { useLang } from "@/lib/language";
+import { useLang }      from "@/lib/language";
+import { searchMulti }  from "@/lib/tmdb";
 
 type Tab = "content" | "servers" | "ads" | "ticker" | "appsettings" | "categories";
 
@@ -67,8 +68,7 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     if (debouncedQuery.length < 2) { setTmdbResults([]); return; }
-    fetch(`/api/tmdb/search?query=${encodeURIComponent(debouncedQuery)}&type=multi`)
-      .then(r => r.ok ? r.json() : { results: [] })
+    searchMulti(debouncedQuery)
       .then(d => setTmdbResults((d.results || []).slice(0, 8)))
       .catch(() => setTmdbResults([]));
   }, [debouncedQuery]);

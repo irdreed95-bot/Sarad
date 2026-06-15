@@ -8,6 +8,7 @@ import { useLang } from "@/lib/language";
 import { isInList, addToList, removeFromList } from "@/lib/auth";
 import { getActiveServers, buildMovieUrl, buildTvUrl } from "@/lib/app-settings";
 import { StreamSources, type ParsedStream } from "@/components/stream-sources";
+import { fetchMovie, fetchTv, fetchSeason } from "@/lib/tmdb";
 
 const TMDB_W780 = "https://image.tmdb.org/t/p/w780";
 const TMDB_BG   = "https://image.tmdb.org/t/p/original";
@@ -177,16 +178,16 @@ export default function WatchPage() {
 
     const go = async () => {
       if (typeParam === "tv") {
-        const r = await fetch(`/api/tmdb/tv/${tmdbId}`);
-        if (r.ok) { setData(await r.json()); setContentType("tv"); }
+        const d = await fetchTv(tmdbId).catch(() => null);
+        if (d?.id) { setData(d); setContentType("tv"); }
       } else if (typeParam === "movie") {
-        const r = await fetch(`/api/tmdb/movie/${tmdbId}`);
-        if (r.ok) { setData(await r.json()); setContentType("movie"); }
+        const d = await fetchMovie(tmdbId).catch(() => null);
+        if (d?.id) { setData(d); setContentType("movie"); }
       } else {
-        const r1 = await fetch(`/api/tmdb/movie/${tmdbId}`);
-        if (r1.ok) { const d = await r1.json(); if (d?.id) { setData(d); setContentType("movie"); return; } }
-        const r2 = await fetch(`/api/tmdb/tv/${tmdbId}`);
-        if (r2.ok) { const d = await r2.json(); if (d?.id) { setData(d); setContentType("tv"); } }
+        const d1 = await fetchMovie(tmdbId).catch(() => null);
+        if (d1?.id) { setData(d1); setContentType("movie"); return; }
+        const d2 = await fetchTv(tmdbId).catch(() => null);
+        if (d2?.id) { setData(d2); setContentType("tv"); }
       }
     };
     go().catch(() => undefined).finally(() => setLoading(false));
@@ -197,8 +198,7 @@ export default function WatchPage() {
     if (contentType !== "tv" || !tmdbId || isNaN(tmdbId)) return;
     setEpisodesLoading(true);
     setEpisodes([]);
-    fetch(`/api/tmdb/tv/${tmdbId}/season/${selectedSeason}`)
-      .then(r => r.ok ? r.json() : { episodes: [] })
+    fetchSeason(tmdbId, selectedSeason)
       .then(d => setEpisodes(d.episodes || []))
       .catch(() => setEpisodes([]))
       .finally(() => setEpisodesLoading(false));
@@ -393,6 +393,7 @@ export default function WatchPage() {
                 type={contentType}
                 season={selectedSeason}
                 episode={selectedEpisode}
+                title={title}
                 onPlayDirect={handlePlayDirect}
               />
             </div>
