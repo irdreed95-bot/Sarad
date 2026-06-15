@@ -27,20 +27,23 @@ jobs:
       run: |
         pnpm install --no-frozen-lockfile
 
-    - name: Configure and Build Sub-App (Sarad)
+    - name: Build Web App & Ensure Assets Directory
       run: |
         cd artifacts/sarad
-        # تثبيت حزم كاباسيتور داخل مجلد التطبيق مباشرة كما اقترح مساعد الطيار
+        # تثبيت حزم كاباسيتور محلياً للتأكد من التعرف عليها
         pnpm add @capacitor/core @capacitor/cli @capacitor/android --save-dev
         
-        # بناء ملفات الويب
+        # تشغيل بناء الويب لتوليد الملفات
         pnpm run build
+        
+        # [تطبيق نصيحة كوبايلوت] إجبار السيرفر على التأكد من وجود مجلد dist لمنع اعتراض كاباسيتور
+        mkdir -p dist
 
     - name: Clean & Force Add Android Platform
       run: |
         cd artifacts/sarad
         
-        # إنشاء ملف الإعدادات النظيف
+        # كتابة ملف الإعدادات وربطه بمجلد dist المضمون وجوده الآن
         cat << 'INNER_EOF' > capacitor.config.json
         {
           "appId": "com.sarad.app",
@@ -49,7 +52,7 @@ jobs:
         }
         INNER_EOF
         
-        # مسح أي مخلفات قديمة وإعادة البناء النظيف من الصفر
+        # تنظيف أي مخلفات قديمة وبناء المنصة من الصفر بنقاء
         rm -rf android
         pnpm exec cap add android
         pnpm exec cap sync android
