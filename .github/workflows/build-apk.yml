@@ -55,6 +55,20 @@ jobs:
         pnpm exec cap add android
         pnpm exec cap sync android
 
+    - name: Configure Android Network Security & Icons
+      run: |
+        cd artifacts/sarad
+        
+        # 1. نسخ الأيقونات الجديدة إلى المجلدات المستهدفة
+        cp -f public/res/hdpi/ic_launcher.png android/app/src/main/res/mipmap-hdpi/ic_launcher.png || true
+        cp -f public/res/mdpi/ic_launcher.png android/app/src/main/res/mipmap-mdpi/ic_launcher.png || true
+        cp -f public/res/xhdpi/ic_launcher.png android/app/src/main/res/mipmap-xhdpi/ic_launcher.png || true
+        cp -f public/res/xxhdpi/ic_launcher.png android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png || true
+        cp -f public/res/xxxhdpi/ic_launcher.png android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png || true
+        
+        # 2. تفعيل صلاحية الاتصال بالروابط غير المشفرة (HTTP) لتوليد المحتوى وتخطي الحظر الأمني
+        sed -i 's/<application/<application android:usesCleartextTraffic="true"/g' android/app/src/main/AndroidManifest.xml || true
+
     - name: Set up JDK 21
       uses: actions/setup-java@v4
       with:
