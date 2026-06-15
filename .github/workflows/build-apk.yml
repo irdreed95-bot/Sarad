@@ -30,13 +30,14 @@ jobs:
     - name: Build Web App
       run: |
         cd artifacts/sarad
-        PORT=3000 BASE_PATH=/ pnpm run build
-        mkdir -p dist www
-        cp -r dist/* www/ 2>/dev/null || true
+        pnpm run build
 
-    - name: Sync Capacitor Android (Using pnpm exec)
+    - name: Complete Capacitor Android Initialization
       run: |
         cd artifacts/sarad
+        # تهيئة كاباسيتور وإضافة منصة الأندرويد برمجياً داخل السيرفر لضمان وجود المجلد
+        pnpm exec cap init "Sarad" "com.sarad.app" --web-dir=dist || true
+        pnpm exec cap add android || true
         pnpm exec cap sync android
 
     - name: Set up JDK 17
