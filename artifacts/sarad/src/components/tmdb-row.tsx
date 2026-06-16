@@ -34,7 +34,11 @@ export function TmdbRow({ titleEn, titleAr, category, mediaType }: TmdbRowProps)
   useEffect(() => {
     setLoading(true);
     fetchCategory(category)
-      .then(data => setItems((data.results || []).slice(0, 24)))
+      .then(data => {
+        // 🛡️ حماية: تأكد أن النتائج عبارة عن مصفوفة صالحة قبل الاستخدام
+        const safeResults = Array.isArray(data?.results) ? data.results : [];
+        setItems(safeResults.slice(0, 24));
+      })
       .catch(() => setItems([]))
       .finally(() => setLoading(false));
   }, [category]);
@@ -61,7 +65,8 @@ export function TmdbRow({ titleEn, titleAr, category, mediaType }: TmdbRowProps)
     );
   }
 
-  if (!items.length) return null;
+  // إذا لم يكن هناك عناصر (أو فشل السيرفر في جلبها)، لا نعرض السطر لتجنب الانهيار
+  if (!Array.isArray(items) || items.length === 0) return null;
 
   return (
     <div className="mb-8 group/tmdbrow">
@@ -91,13 +96,13 @@ export function TmdbRow({ titleEn, titleAr, category, mediaType }: TmdbRowProps)
           style={{ scrollbarWidth: "none", msOverflowStyle: "none" } as React.CSSProperties}
         >
           {items.map(item => {
-            const title = item.title || item.name || "";
-            const year = (item.release_date || item.first_air_date || "").slice(0, 4);
-            const poster = item.poster_path ? `${IMG_W780}${item.poster_path}` : null;
+            const title = item?.title || item?.name || "";
+            const year = (item?.release_date || item?.first_air_date || "").slice(0, 4);
+            const poster = item?.poster_path ? `${IMG_W780}${item.poster_path}` : null;
 
             return (
               <button
-                key={item.id}
+                key={item?.id}
                 onClick={() => handleClick(item)}
                 className="relative flex-shrink-0 w-36 md:w-44 rounded-xl overflow-hidden bg-zinc-900 border border-white/5 hover:border-primary/60 hover:scale-105 transition-all duration-200 group/card text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 style={{ aspectRatio: "2/3" }}
@@ -120,7 +125,7 @@ export function TmdbRow({ titleEn, titleAr, category, mediaType }: TmdbRowProps)
                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent pt-8 pb-2 px-2">
                   <p className="text-white text-[11px] font-semibold line-clamp-2 leading-tight">{title}</p>
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    {item.vote_average && item.vote_average > 0 ? (
+                    {item?.vote_average && item.vote_average > 0 ? (
                       <span className="flex items-center gap-0.5 text-primary text-[10px]">
                         <Star size={8} fill="currentColor" />
                         {item.vote_average.toFixed(1)}
