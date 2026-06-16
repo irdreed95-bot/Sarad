@@ -1,0 +1,245 @@
+import { useState } from "react";
+import React, { useEffect } from "react";
+import { Search, X, Star } from "lucide-react";
+import { useLocation } from "wouter";
+import { searchMulti } from "@/lib/tmdb";
+import { ContentCard } from "@/components/content-card";
+import { useLang } from "@/lib/language";
+import { useDebounce } from "@/hooks/use-debounce";
+import { Skeleton } from "@/components/ui/skeleton";
+
+type FilterType = "all" | "movie" | "series";
+
+const TMDB_IMG = "https://image.tmdb.org/t/p/w500";
+
+interface SearchResult {
+  id: number;
+  title?: string;
+  name?: string;
+  poster_path?: string | null;
+  vote_average?: number;
+  release_date?: string;
+  first_air_date?: string;
+  media_type?: string;
+}
+
+export default function SearchPage() {
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<FilterType>("all");
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const { t, isRTL } = useLang();
+  const [, navigate] = useLocation();
+  const debouncedQuery = useDebounce(query, 400);
+
+  // Fetch from TMDB directly, client-side
+  useEffect(() => {
+    if (debouncedQuery.length < 2) {
+      setResults([]);
+      return;
+    }
+
+    setLoading(true);
+    searchMulti(debouncedQuery)
+      .then((data) => {
+        // 🛡️ Safe array extraction
+        const safeResults = Array.isArray(data?.results) ? data.results : [];
+        setResults(safeResults);
+      })
+      .catch(() => setResults([]))
+      .finally(() => setLoading(false));
+  }, [debouncedQuery]);
+
+  // Local matches (empty if no local content available)
+  const localMatches: any[] = [];
+
+  // 🛡️ Safe filtering of TMDB results
+  const tmdbItems = (Array.isArray(results) ? results : [])
+    .filter(
+      (m: any) =>
+        m?.media_type !== "person" &&
+        (filter === "all" ||
+          m?.media_type === filter ||
+          (filter === "series" && m?.media_type === "tv"))
+    )
+    .slice(0, 20);
+
+  const filterTabs: { key: FilterType; labelAr: string; labelEn: string }[] = [
+    { key: "all", labelAr: "الكل", labelEn: "All" },
+    { key: "movie", labelAr: "أفلام", labelEn: "Movies" },
+    { key: "series", labelAr: "مسلسلات", labelEn: "Series" },
+  ];
+
+  return (
+    <div className="min-h-screen bg-black text-white pt-20 pb-24 md:pb-8 px-4 md:px-8">
+      {/* Search bar */}
+      <div className="max-w-2xl mx-auto mt-8 mb-8">
+        <div className="relative flex items-center">
+          <Search className="absolute start-4 text-white/40" size={20} />
+          <input
+            data-testid="input-search"
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            autoFocus
+            placeholder={t("ابحث عن فيلم أو مسلسل...", "Search for a movie or series...")}
+            className={`w-full bg-zinc-900 border border-white/10 rounded-xl py-4 text-white placeholder-white/40 focus:outline-none focus:border-primary/50 transition-colors ${
+              isRTL ? "pr-12 pl-12 text-right" : "pl-12 pr-12"
+            }`}
+          />
+          {query && (
+            <button
+              data-testid="button-clear-search"
+              onClick={() => setQuery("")}
+              className="absolute end-4 text-white/40 hover:text-white transition-colors"
+            >
+              <X size={18} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Filter tabs */}
+      <div className={`flex gap-2 mb-6 ${isRTL ? "justify-end" : "justify-start"}`}>
+        {filterTabs.map(({ key, labelAr, labelEn }) => (
+          <button
+            key={key}
+            data-testid={`button-filter-${key}`}
+            onClick={() => setFilter(key)}
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+              filter === key
+                ? "bg-primary text-primary-foreground"
+                : "bg-zinc-900 text-white/60 hover:text-white border border-white/10"
+            }`}
+          >
+            {t(labelAr, labelEn)}
+          </button>
+        ))}
+      </div>
+
+      {/* Local library matches (empty state for now) */}
+      {localMatches.length > 0 && (
+        <div className="mb-8">
+          <h3
+            className={`text-base font-semibold text-white/80 mb-4 ${
+              isRTL ? "text-right" : "text-left"
+            }`}
+          >
+            {t("من مكتبتنا", "From Our Library")}
+          </h3>
+          <div className="flex flex-wrap gap-3">
+            {localMatches.map((item) => (
+              <ContentCard
+                key={item.id}
+                id={item.id}
+                title={item.title}
+                titleAr={item.titleAr}
+                posterUrl={item.posterUrl}
+                rating={item.rating}
+                year={item.year}
+                type={item.type}
+                quality={item.quality}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* TMDB results */}
+      {debouncedQuery.length > 1 && (
+        <div>
+          <h3
+            className={`text-base font-semibold text-white/80 mb-4 ${
+              isRTL ? "text-right" : "text-left"
+            }`}
+          >
+            {t("نتائج البحث", "Search Results")}
+          </h3>
+          {loading ? (
+            <div className="flex flex-wrap gap-3">
+              {[...Array(8)].map((_, i) => (
+                <Skeleton key={i} className="w-36 h-52 rounded-lg bg-zinc-900" />
+              ))}
+            </div>
+          ) : Array.isArray(tmdbItems) && tmdbItems.length > 0 ? (
+            <div className="flex flex-wrap gap-3">
+              {tmdbItems.map((m: any) => (
+                <button
+                  key={m?.id}
+                  data-testid={`card-tmdb-${m?.id}`}
+                  onClick={() => navigate(`/watch/${m?.id}`)}
+                  className="relative flex-shrink-0 w-36 rounded-lg overflow-hidden bg-zinc-900 border border-white/5 hover:border-primary/50 hover:scale-105 transition-all duration-200 cursor-pointer group/card"
+                  style={{ aspectRatio: "2/3" }}
+                >
+                  {m?.poster_path ? (
+                    <img
+                      src={`${TMDB_IMG}${m.poster_path}`}
+                      alt={m?.title || m?.name}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center p-2 bg-zinc-800">
+                      <span className="text-white/40 text-xs text-center">
+                        {m?.title || m?.name}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Play overlay on hover */}
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/card:opacity-100 transition-opacity flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-full bg-primary/90 flex items-center justify-center">
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="white"
+                      >
+                        <path d="M8 5v14l11-7z" />
+                      </svg>
+                    </div>
+                  </div>
+
+                  {/* Info bar */}
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/70 to-transparent p-2 pt-6">
+                    <p className="text-white text-xs font-medium line-clamp-2 leading-tight">
+                      {m?.title || m?.name}
+                    </p>
+                    {m?.vote_average && m.vote_average > 0 && (
+                      <p className="flex items-center gap-0.5 text-primary text-[10px] mt-1">
+                        <Star size={9} fill="currentColor" />
+                        {m.vote_average.toFixed(1)}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Type badge */}
+                  <div className="absolute top-1.5 left-1.5 bg-black/70 text-white/60 text-[9px] uppercase px-1.5 py-0.5 rounded">
+                    {m?.media_type === "tv" ? t("مسلسل", "TV") : t("فيلم", "Movie")}
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-white/40 text-sm">
+              {t("لا توجد نتائج", "No results found")}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!debouncedQuery && (
+        <div className="flex flex-col items-center justify-center mt-20 text-center">
+          <Search size={48} className="text-white/20 mb-4" />
+          <p className="text-white/40 text-lg">
+            {t("ابدأ بالبحث عن محتوى", "Start searching for content")}
+          </p>
+          <p className="text-white/25 text-sm mt-1">
+            {t("أفلام، مسلسلات، وأكثر", "Movies, series, and more")}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
