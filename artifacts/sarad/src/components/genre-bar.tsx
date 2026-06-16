@@ -86,7 +86,7 @@ export function GenreBar({ selectedGenreId, onSelectGenre }: GenreBarProps) {
                 selectedGenreId === id
                   ? "bg-primary text-primary-foreground border-primary shadow-[0_0_16px_rgba(212,175,55,0.35)]"
                   : "bg-zinc-900 text-white/70 border-white/10 hover:border-primary/40 hover:text-white"
-              }`}
+            }`}
             >
               <span aria-hidden>{emoji}</span>
               {t(nameAr, nameEn)}
@@ -122,7 +122,11 @@ export function GenreMoviesRow({ genreId, genreName }: GenreMoviesRowProps) {
     setLoading(true);
     setMovies([]);
     fetchDiscover(genreId)
-      .then((data) => setMovies(data.results || []))
+      .then((data) => {
+        // 🛡️ الحماية الأساسية هنا: التأكد من أن النتائج مصفوفة صالحة قبل خزنها
+        const safeMovies = Array.isArray(data?.results) ? data.results : [];
+        setMovies(safeMovies);
+      })
       .catch(() => setMovies([]))
       .finally(() => setLoading(false));
   }, [genreId]);
@@ -148,7 +152,8 @@ export function GenreMoviesRow({ genreId, genreName }: GenreMoviesRowProps) {
     );
   }
 
-  if (!movies.length) return null;
+  // 🛡️ حماية العرض: إذا كانت المصفوفة فارغة أو غير صالحة لا تعرض شيئاً لتجنب الكراش
+  if (!Array.isArray(movies) || movies.length === 0) return null;
 
   return (
     <div className="mb-8 group/genrerow">
@@ -180,22 +185,22 @@ export function GenreMoviesRow({ genreId, genreName }: GenreMoviesRowProps) {
         >
           {movies.map((m) => (
             <button
-              key={m.id}
-              data-testid={`genre-movie-${m.id}`}
-              onClick={() => navigate(`/watch/${m.id}`)}
+              key={m?.id}
+              data-testid={`genre-movie-${m?.id}`}
+              onClick={() => navigate(`/watch/${m?.id}`)}
               className="relative flex-shrink-0 w-36 rounded-lg overflow-hidden bg-zinc-900 border border-white/5 hover:border-primary/50 hover:scale-105 transition-all duration-200 group/card text-left"
               style={{ aspectRatio: "2/3" }}
             >
-              {m.poster_path ? (
+              {m?.poster_path ? (
                 <img
                   src={`${TMDB_IMG}${m.poster_path}`}
-                  alt={m.title}
+                  alt={m?.title}
                   className="w-full h-full object-cover"
                   loading="lazy"
                 />
               ) : (
                 <div className="w-full h-full bg-zinc-800 flex items-center justify-center p-2">
-                  <span className="text-white/30 text-xs text-center">{m.title}</span>
+                  <span className="text-white/30 text-xs text-center">{m?.title}</span>
                 </div>
               )}
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/card:opacity-100 transition-opacity flex items-center justify-center">
@@ -207,9 +212,9 @@ export function GenreMoviesRow({ genreId, genreName }: GenreMoviesRowProps) {
               </div>
               <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/60 to-transparent p-2 pt-6">
                 <p className="text-white text-xs font-medium line-clamp-2 leading-tight">
-                  {m.title}
+                  {m?.title}
                 </p>
-                {m.vote_average > 0 && (
+                {m?.vote_average > 0 && (
                   <p className="flex items-center gap-0.5 text-primary text-[10px] mt-0.5">
                     <Star size={8} fill="currentColor" />
                     {m.vote_average.toFixed(1)}
