@@ -1,50 +1,46 @@
-import { useGetFeaturedContent, useGetTmdbTrending, useListAds } from "@workspace/api-client-react";
 import { HeroSlider } from "@/components/hero-slider";
 import { AnnouncementTicker } from "@/components/announcement-ticker";
 import { TmdbRow } from "@/components/tmdb-row";
 import { GenreBar, GenreMoviesRow } from "@/components/genre-bar";
 import { Footer } from "@/components/footer";
 import { useLang } from "@/lib/language";
-import { getCustomAds } from "@/lib/admin-store";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { Tv, Radio } from "lucide-react";
+import { fetchCategory } from "@/lib/tmdb";
 
 const TMDB_BG   = "https://image.tmdb.org/t/p/original";
 const TMDB_W780 = "https://image.tmdb.org/t/p/w780";
 
 export default function HomePage() {
   const { t, isRTL } = useLang();
-  const { data: featured } = useGetFeaturedContent();
-  const { data: trending } = useGetTmdbTrending();
-  const { data: dbAds } = useListAds();
-
-  // 🛡️ حماية المصفوفات من الانهيار
-  const safeCustomAds = Array.isArray(getCustomAds()) ? getCustomAds().filter(a => a?.isActive && a?.imageUrl) : [];
-  const safeDbAds = Array.isArray(dbAds) ? dbAds : [];
-  const safeTrending = Array.isArray(trending?.results) ? trending.results : [];
-
+  const [trending, setTrending] = useState<any[]>([]);
   const [selectedGenreId, setSelectedGenreId] = useState<number | null>(null);
   const [selectedGenreName, setSelectedGenreName] = useState("");
 
-  // Hero: DB featured → TMDB trending fallback
-  const heroItems =
-    Array.isArray(featured) && featured.length > 0
-      ? featured
-      : safeTrending.slice(0, 5).map((m: any) => ({
-          id: m.id,
-          title: m.title || m.name || "",
-          titleAr: null,
-          description: m.overview,
-          descriptionAr: null,
-          backdropUrl: m.backdrop_path ? `${TMDB_BG}${m.backdrop_path}` : null,
-          posterUrl: m.poster_path ? `${TMDB_W780}${m.poster_path}` : null,
-          rating: m.vote_average,
-          year: (() => { const d = m.release_date || m.first_air_date || ""; return d ? parseInt(d.slice(0, 4)) : null; })(),
-          quality: "4K",
-        }));
+  // جلب الأفلام للواجهة العلوية مباشرة من الإنترنت (TMDB) بدل السيرفر المفقود
+  useEffect(() => {
+    fetchCategory("trending")
+      .then(data => {
+        if (data && Array.isArray(data.results)) {
+          setTrending(data.results);
+        }
+      })
+      .catch(err => console.error("Error fetching trending:", err));
+  }, []);
 
-  const bannerAds = [...safeDbAds.filter(a => a?.type === "banner"), ...safeCustomAds];
+  const heroItems = trending.slice(0, 5).map((m: any) => ({
+    id: m.id,
+    title: m.title || m.name || "",
+    titleAr: null,
+    description: m.overview,
+    descriptionAr: null,
+    backdropUrl: m.backdrop_path ? `${TMDB_BG}${m.backdrop_path}` : null,
+    posterUrl: m.poster_path ? `${TMDB_W780}${m.poster_path}` : null,
+    rating: m.vote_average,
+    year: (() => { const d = m.release_date || m.first_air_date || ""; return d ? parseInt(d.slice(0, 4)) : null; })(),
+    quality: "4K",
+  }));
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -70,33 +66,7 @@ export default function HomePage() {
         </Link>
       </div>
 
-      {/* Ad Banners */}
-      {Array.isArray(bannerAds) && bannerAds.length > 0 && (
-        <div className="px-4 md:px-8 py-3">
-          <div className="flex gap-3 overflow-x-auto" style={{ scrollbarWidth: "none" } as React.CSSProperties}>
-            {bannerAds.map((ad, index) => (
-              <a
-                key={ad?.id || index}
-                href={ad?.linkUrl || "#"}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-shrink-0 rounded-2xl overflow-hidden border border-primary/20 hover:border-primary/60 transition-colors shadow-lg"
-                style={{ width: 320, height: 100 }}
-              >
-                {ad?.imageUrl ? (
-                  <img src={ad.imageUrl} alt={ad?.title || "Ad"} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-r from-zinc-900 to-zinc-800">
-                    <span className="text-primary font-semibold text-sm">{ad?.title}</span>
-                  </div>
-                )}
-              </a>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── Genre Bar (restored) ─────────────────────────────────────── */}
+      {/* Genre Bar */}
       <div className="pt-4">
         <GenreBar
           selectedGenreId={selectedGenreId}
@@ -110,7 +80,7 @@ export default function HomePage() {
         )}
       </div>
 
-      {/* ── Netflix-style TMDB Rows ──────────────────────────────────── */}
+      {/* TMDB Rows */}
       <div className="pb-4 pt-2 space-y-1">
         <TmdbRow titleEn="🔥 Trending Now"          titleAr="🔥 الأكثر رواجاً الآن"           category="trending" />
         <TmdbRow titleEn="⚡ Action & Adventure"     titleAr="⚡ أكشن ومغامرات"               category="action"           mediaType="movie" />
