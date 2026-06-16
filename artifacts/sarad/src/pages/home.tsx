@@ -18,16 +18,20 @@ export default function HomePage() {
   const { data: featured } = useGetFeaturedContent();
   const { data: trending } = useGetTmdbTrending();
   const { data: dbAds } = useListAds();
-  const customAds = getCustomAds().filter(a => a.isActive && a.imageUrl);
+
+  // 🛡️ حماية المصفوفات من الانهيار
+  const safeCustomAds = Array.isArray(getCustomAds()) ? getCustomAds().filter(a => a?.isActive && a?.imageUrl) : [];
+  const safeDbAds = Array.isArray(dbAds) ? dbAds : [];
+  const safeTrending = Array.isArray(trending?.results) ? trending.results : [];
 
   const [selectedGenreId, setSelectedGenreId] = useState<number | null>(null);
   const [selectedGenreName, setSelectedGenreName] = useState("");
 
   // Hero: DB featured → TMDB trending fallback
   const heroItems =
-    featured && featured.length > 0
+    Array.isArray(featured) && featured.length > 0
       ? featured
-      : (trending?.results || []).slice(0, 5).map((m: any) => ({
+      : safeTrending.slice(0, 5).map((m: any) => ({
           id: m.id,
           title: m.title || m.name || "",
           titleAr: null,
@@ -40,7 +44,7 @@ export default function HomePage() {
           quality: "4K",
         }));
 
-  const bannerAds = [...(dbAds || []).filter(a => a.type === "banner"), ...customAds];
+  const bannerAds = [...safeDbAds.filter(a => a?.type === "banner"), ...safeCustomAds];
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -67,23 +71,23 @@ export default function HomePage() {
       </div>
 
       {/* Ad Banners */}
-      {bannerAds.length > 0 && (
+      {Array.isArray(bannerAds) && bannerAds.length > 0 && (
         <div className="px-4 md:px-8 py-3">
           <div className="flex gap-3 overflow-x-auto" style={{ scrollbarWidth: "none" } as React.CSSProperties}>
-            {bannerAds.map(ad => (
+            {bannerAds.map((ad, index) => (
               <a
-                key={ad.id}
-                href={ad.linkUrl || "#"}
+                key={ad?.id || index}
+                href={ad?.linkUrl || "#"}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex-shrink-0 rounded-2xl overflow-hidden border border-primary/20 hover:border-primary/60 transition-colors shadow-lg"
                 style={{ width: 320, height: 100 }}
               >
-                {ad.imageUrl ? (
-                  <img src={ad.imageUrl} alt={ad.title} className="w-full h-full object-cover" />
+                {ad?.imageUrl ? (
+                  <img src={ad.imageUrl} alt={ad?.title || "Ad"} className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-gradient-to-r from-zinc-900 to-zinc-800">
-                    <span className="text-primary font-semibold text-sm">{ad.title}</span>
+                    <span className="text-primary font-semibold text-sm">{ad?.title}</span>
                   </div>
                 )}
               </a>
